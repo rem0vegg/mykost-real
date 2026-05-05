@@ -10,19 +10,23 @@ export default function AgentDashboard() {
   const [tab, setTab] = useState('available');
   const [available, setAvailable] = useState([]);
   const [myOrders, setMyOrders] = useState([]);
+  const [commissions, setCommissions] = useState([]); // State untuk Commission Tracking
   const [noKota, setNoKota] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [a, m] = await Promise.all([
+      // Menambahkan fetch untuk komisi agen
+      const [a, m, c] = await Promise.all([
         api.get('/api/survey-orders/available'),
         api.get('/api/survey-orders/my-orders'),
+        api.get('/api/survey-orders/agent/commissions').catch(() => ({ data: { list: [] } }))
       ]);
       setAvailable(a.data.orders);
       setNoKota(a.data.noKota || false);
       setMyOrders(m.data.orders);
+      setCommissions(c.data.list || []);
     } catch {}
     setLoading(false);
   };
@@ -47,6 +51,9 @@ export default function AgentDashboard() {
     active: myOrders.filter((o) => o.status === 'assigned').length,
     completed: myOrders.filter((o) => o.status === 'completed').length,
   };
+
+  // Kalkulasi total komisi
+  const totalCommission = commissions.reduce((acc, curr) => acc + curr.amount, 0);
 
   if (loading) return <div className="spinner" />;
 
@@ -75,6 +82,10 @@ export default function AgentDashboard() {
         </button>
         <button className={`tab-btn ${tab === 'my-orders' ? 'active' : ''}`} onClick={() => setTab('my-orders')}>
           Pekerjaan Saya ({myOrders.length})
+        </button>
+        {/* Tab Baru: Commission Tracking */}
+        <button className={`tab-btn ${tab === 'commissions' ? 'active' : ''}`} onClick={() => setTab('commissions')}>
+          Komisi Saya
         </button>
       </div>
 
@@ -152,6 +163,40 @@ export default function AgentDashboard() {
                   <button className="btn btn-primary btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
                     {order.status === 'assigned' ? 'Kirim Hasil Survei' : 'Lihat Detail'}
                   </button>
+                </div>
+              </div>
+            ))
+          )}
+        </>
+      )}
+
+      {/* Bagian Commission Tracking */}
+      {tab === 'commissions' && (
+        <>
+          <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0' }}>
+            <div className="card-title" style={{ color: '#065f46' }}>Total Estimasi Komisi</div>
+            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#047857' }}>
+              Rp {totalCommission.toLocaleString('id-ID')}
+            </p>
+          </div>
+
+          {commissions.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">💰</div>
+              <p>Belum ada data komisi tercatat.</p>
+            </div>
+          ) : (
+            commissions.map((comm) => (
+              <div key={comm.id} className="order-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div className="order-card-title">Order #{comm.orderId}</div>
+                  <div className="order-meta">Tanggal: {new Date(comm.date).toLocaleDateString('id-ID')}</div>
+                  <div className="order-meta">
+                    Status: <strong style={{ color: comm.status === 'Paid' ? '#10b981' : '#f59e0b' }}>{comm.status}</strong>
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#374151' }}>
+                  + Rp {comm.amount.toLocaleString('id-ID')}
                 </div>
               </div>
             ))
