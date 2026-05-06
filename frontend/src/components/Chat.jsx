@@ -7,13 +7,7 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const messagesRef = useRef(null); // ref on the scrollable container, NOT a child element
-
-  const scrollToBottom = () => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-    }
-  };
+  const bottomRef = useRef(null);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -25,13 +19,12 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
-  // Scroll only the chat container, not the page
   useEffect(() => {
-    scrollToBottom();
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const send = async (e) => {
@@ -55,7 +48,7 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
 
   return (
     <div className="chat-box">
-      <div className="chat-messages" ref={messagesRef}>
+      <div className="chat-messages">
         {messages.length === 0 && (
           <p style={{ color: '#9ca3af', textAlign: 'center', marginTop: '2rem', fontSize: '0.88rem' }}>
             Belum ada pesan. Mulai percakapan!
@@ -71,6 +64,7 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
             </div>
           );
         })}
+        <div ref={bottomRef} />
       </div>
       <form className="chat-input-row" onSubmit={send}>
         <input

@@ -1,8 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import NotificationBell from './NotificationBell';
 
-export default function Navbar() {
+export default function Navbar({ unreadCount = 0 }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -19,8 +18,10 @@ export default function Navbar() {
           <>
             <span className={`role-badge role-${user.role}`}>{user.role}</span>
             <Link to="/dashboard">Dashboard</Link>
-            <NotificationBell />
-            <Link to="/profile">{user.name}</Link>
+            <Link to="/profile">
+              {user.name}
+              {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
+            </Link>
             <button onClick={handleLogout}>Logout</button>
           </>
         )}
