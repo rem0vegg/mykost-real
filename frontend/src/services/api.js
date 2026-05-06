@@ -21,21 +21,6 @@ api.interceptors.response.use(
   }
 );
 
-// Tambahkan fungsi export ini untuk endpoint API baru
-export const uploadMovingEvidence = async (orderId, file, type) => {
-  const formData = new FormData();
-  formData.append('evidence', file);
-  formData.append('type', type); // 'pickup' atau 'delivery'
-
-  // Asumsikan 'api' adalah instance axios Anda
-  const response = await api.put(`/moving-orders/${orderId}/evidence`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
-
 export const getFileUrl = (path) => (path ? `${BASE_URL}${path}` : null);
 
 export default api;
