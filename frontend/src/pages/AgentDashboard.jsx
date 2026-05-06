@@ -12,6 +12,7 @@ export default function AgentDashboard() {
   const [myOrders, setMyOrders] = useState([]);
   const [commissions, setCommissions] = useState([]);
   const [noKota, setNoKota] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
 
@@ -24,6 +25,7 @@ export default function AgentDashboard() {
       ]);
       setAvailable(a.data.orders);
       setNoKota(a.data.noKota || false);
+      setOffline(a.data.offline || false);
       setMyOrders(m.data.orders);
       setCommissions(c.data.list || []);
     } catch {}
@@ -61,10 +63,21 @@ export default function AgentDashboard() {
 
       {/* Kota warning */}
       {noKota && (
-        <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
           ⚠️ Kota belum diatur. <strong>
             <a href="/profile" style={{ color: 'inherit', textDecoration: 'underline' }}>Set kota di Profil</a>
           </strong> agar bisa melihat dan menerima order survey.
+        </div>
+      )}
+
+      {/* Offline warning */}
+      {offline && !noKota && (
+        <div style={{ background: '#f3f4f6', border: '1.5px solid #d1d5db', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <span style={{ fontWeight: 700, color: '#374151' }}>🔴 Anda sedang Offline</span>
+            <span style={{ fontSize: '0.85rem', color: '#6b7280', marginLeft: '0.5rem' }}>Order tidak akan tampil dan tidak bisa diterima.</span>
+          </div>
+          <a href="/profile" className="btn btn-success btn-sm">Set Online di Profil →</a>
         </div>
       )}
 
@@ -110,8 +123,8 @@ export default function AgentDashboard() {
                     </div>
                     <div className="order-meta">Klien: {order.user_name} {order.user_phone && `· ${order.user_phone}`}</div>
                     {order.notes && (
-                      <div className="order-meta" style={{ marginTop: '0.3rem', fontStyle: 'italic' }}>
-                        Catatan: {order.notes}
+                      <div className="order-meta" style={{ marginTop: '0.3rem', fontStyle: 'italic', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                        Catatan: {order.notes.length > 120 ? order.notes.slice(0, 120) + '…' : order.notes}
                       </div>
                     )}
                   </div>

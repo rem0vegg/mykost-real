@@ -14,6 +14,12 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
 
+  // Availability (agent only)
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [toggling, setToggling] = useState(false);
+  const [availMsg, setAvailMsg] = useState('');
+  const [availErr, setAvailErr] = useState('');
+
   useEffect(() => {
     if (user) {
       setForm({
@@ -22,6 +28,7 @@ export default function ProfilePage() {
         location: user.location || '',
         kota: user.kota || '',
       });
+      setIsAvailable(user.is_available !== false); // default true
     }
   }, [user]);
 
@@ -53,6 +60,23 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleAvailability = async () => {
+    const next = !isAvailable;
+    setToggling(true); setAvailMsg(''); setAvailErr('');
+    try {
+      await api.put('/api/users/availability', { is_available: next });
+      setIsAvailable(next);
+      await fetchMe();
+      setAvailMsg(next
+        ? 'Status diubah ke Online. Anda akan menerima order baru.'
+        : 'Status diubah ke Offline.');
+    } catch (error) {
+      setAvailErr(error.response?.data?.error || 'Gagal mengubah status');
+    } finally {
+      setToggling(false);
+    }
+  };
+
   if (!user) return <div className="spinner" />;
 
   return (
@@ -60,6 +84,7 @@ export default function ProfilePage() {
       <div className="page-title">Profil Saya</div>
       <div className="grid-2">
         <div>
+          {/* ── Account Info ── */}
           <div className="card">
             <div className="card-title">Info Akun</div>
             <div style={{ marginBottom: '0.5rem' }}>
@@ -71,6 +96,66 @@ export default function ProfilePage() {
             </p>
           </div>
 
+          {/* ── Agent Availability ── */}
+          {user.role === 'agent' && (
+            <div className="card">
+              <div className="card-title">Status Ketersediaan</div>
+              <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '1rem' }}>
+                Saat <strong>Online</strong>, Anda akan menerima dan bisa mengambil order baru.<br />
+                Saat <strong>Offline</strong>, order tidak akan tampil. Tidak bisa offline jika ada order yang sedang berjalan.
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                {/* Toggle switch */}
+                <button
+                  onClick={toggleAvailability}
+                  disabled={toggling}
+                  style={{
+                    position: 'relative',
+                    width: '52px',
+                    height: '28px',
+                    borderRadius: '99px',
+                    border: 'none',
+                    background: isAvailable ? '#10b981' : '#d1d5db',
+                    cursor: toggling ? 'not-allowed' : 'pointer',
+                    transition: 'background 0.2s',
+                    flexShrink: 0,
+                    padding: 0,
+                  }}
+                  title={isAvailable ? 'Klik untuk Offline' : 'Klik untuk Online'}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: '3px',
+                    left: isAvailable ? '27px' : '3px',
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: '#fff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    transition: 'left 0.2s',
+                    display: 'block',
+                  }} />
+                </button>
+
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: isAvailable ? '#10b981' : '#9ca3af' }}>
+                    {isAvailable ? '🟢 Online' : '🔴 Offline'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    {isAvailable
+                      ? 'Anda terlihat oleh sistem & bisa menerima order'
+                      : 'Anda tidak terlihat, tidak bisa menerima order'}
+                  </div>
+                </div>
+              </div>
+
+              {availMsg && <div className="alert alert-success" style={{ marginBottom: 0 }}>{availMsg}</div>}
+              {availErr && <div className="alert alert-error" style={{ marginBottom: 0 }}>{availErr}</div>}
+            </div>
+          )}
+
+          {/* ── Edit Profile ── */}
           <div className="card">
             <div className="card-title">Edit Profil</div>
             {msg && <div className="alert alert-success">{msg}</div>}
@@ -78,18 +163,22 @@ export default function ProfilePage() {
             <form onSubmit={saveProfile}>
               <div className="form-group">
                 <label className="form-label">Nama Lengkap</label>
-                <input className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                <input className="form-control" value={form.name} maxLength={60}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               </div>
               <div className="form-group">
-                <label className="form-label">Nomor HP</label>
-                <input className="form-control" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxxxxxxxxx" />
+                <label className="form-label">Nomor HP <span style={{ color: '#9ca3af', fontWeight: 400 }}>(10–12 digit)</span></label>
+                <input className="form-control" value={form.phone} maxLength={12}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
+                  placeholder="08xxxxxxxxxx" />
               </div>
               <div className="form-group">
                 <label className="form-label">Alamat / Lokasi</label>
-                <input className="form-control" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Contoh: Jakarta Selatan" />
+                <input className="form-control" value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="Contoh: Jakarta Selatan" />
               </div>
 
-              {/* Kota field only for agents */}
               {user.role === 'agent' && (
                 <div className="form-group">
                   <label className="form-label">Kota Operasional</label>
@@ -111,6 +200,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* ── Change Password ── */}
         <div className="card">
           <div className="card-title">Ubah Password</div>
           {pwMsg && <div className="alert alert-success">{pwMsg}</div>}
@@ -118,11 +208,13 @@ export default function ProfilePage() {
           <form onSubmit={changePassword}>
             <div className="form-group">
               <label className="form-label">Password Saat Ini</label>
-              <input className="form-control" type="password" value={pwForm.currentPassword} onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })} required />
+              <input className="form-control" type="password" value={pwForm.currentPassword}
+                onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })} required />
             </div>
             <div className="form-group">
               <label className="form-label">Password Baru <span style={{ color: '#9ca3af', fontWeight: 400 }}>(min 6 karakter)</span></label>
-              <input className="form-control" type="password" value={pwForm.newPassword} onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })} required minLength={6} />
+              <input className="form-control" type="password" value={pwForm.newPassword}
+                onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })} required minLength={6} />
             </div>
             <button className="btn btn-secondary" type="submit" disabled={changingPw}>
               {changingPw ? 'Mengubah...' : 'Ubah Password'}
