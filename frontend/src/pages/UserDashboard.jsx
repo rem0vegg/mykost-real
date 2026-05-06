@@ -53,7 +53,7 @@ export default function UserDashboard() {
     setForm((f) => ({
       ...f,
       address: loc.address,
-      kota: matchedKota, // auto-select from standardized list if matched
+      kota: matchedKota, 
     }));
   };
 
@@ -305,6 +305,9 @@ export default function UserDashboard() {
                   <StatusBadge status={order.status} />
                 </div>
                 <div className="order-actions">
+                  {order.status !== 'pending_payment' && order.status !== 'finding_agent' && (
+                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>💬 Chat Agent</button>
+                  )}
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
                     {order.status === 'pending_payment' ? '💳 Bayar Sekarang' : 'Lihat Detail'}
                   </button>
@@ -373,6 +376,9 @@ export default function UserDashboard() {
                   <StatusBadge status={o.status} />
                 </div>
                 <div className="order-actions">
+                  {o.status !== 'pending' && (
+                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>💬 Chat Mover</button>
+                  )}
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>Lihat Detail</button>
                 </div>
               </div>

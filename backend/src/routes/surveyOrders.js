@@ -11,9 +11,10 @@ router.post('/:id/pay', authenticate, requireRole('user'), ctrl.payOrder);
 router.post('/:id/refund', authenticate, requireRole('user'), ctrl.requestRefund);
 
 // ── agent ─────────────────────────────────────────────────────────────────────
-// NOTE: /available and /my-orders must come BEFORE /:id
+// NOTE: /available, /my-orders, /agent/commissions must come BEFORE /:id
 router.get('/available', authenticate, requireRole('agent'), ctrl.getAvailableOrders);
 router.get('/my-orders', authenticate, requireRole('agent'), ctrl.getAgentOrders);
+router.get('/agent/commissions', authenticate, requireRole('agent'), ctrl.getAgentCommissions);
 router.post('/:id/accept', authenticate, requireRole('agent'), ctrl.acceptOrder);
 router.post('/:id/survey-result',
   authenticate, requireRole('agent'),
