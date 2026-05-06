@@ -39,8 +39,8 @@ export default function MoverDashboard() {
 
   const stats = {
     available: available.length,
-    active: myJobs.filter((o) => ['assigned', 'in_progress'].includes(o.status)).length,
-    completed: myJobs.filter((o) => o.status === 'completed').length,
+    active: myJobs.filter((o) => ['ACCEPTED','ON_GOING'].includes(o.status)).length,
+    completed: myJobs.filter((o) => o.status === 'COMPLETED').length,
   };
 
   if (loading) return <div className="spinner" />;
@@ -76,12 +76,15 @@ export default function MoverDashboard() {
               <div key={order.id} className="order-card" style={{ borderLeftColor: '#0f3460' }}>
                 <div className="order-card-header">
                   <div>
-                    <div className="order-card-title">{order.pickup_location} → {order.delivery_location}</div>
+                    <div className="order-card-title">{order.pickup_location} → {order.dropoff_location}</div>
                     <div className="order-meta">
-                      Budget: {order.budget ? `Rp ${order.budget.toLocaleString('id-ID')}` : 'Negotiable'} &middot; Date: {fmt(order.scheduled_date)}
+                      {order.move_type} · {order.vehicle_type} · {order.distance_km} km · {fmt(order.scheduled_date)}
                     </div>
-                    <div className="order-meta">Client: {order.user_name} {order.user_phone && `(${order.user_phone})`}</div>
-                    {order.description && <div className="order-meta" style={{ marginTop: '0.25rem' }}>{order.description}</div>}
+                    <div className="order-meta" style={{ fontWeight: 600, color: '#0f3460' }}>
+                      Rp {Number(order.estimated_price).toLocaleString('id-ID')}
+                      {order.has_large_items && ' · ⚠️ Barang besar'}
+                    </div>
+                    <div className="order-meta">Pemesan: {order.user_name} {order.user_phone && `(${order.user_phone})`}</div>
                   </div>
                   <StatusBadge status={order.status} />
                 </div>
@@ -112,14 +115,19 @@ export default function MoverDashboard() {
             </div>
           ) : (
             myJobs.map((order) => (
-              <div key={order.id} className="order-card" style={{ borderLeftColor: '#0f3460' }}>
+              <div key={order.id} className="order-card" style={{ borderLeftColor: order.status === 'INVALID' ? '#ef4444' : '#0f3460' }}>
                 <div className="order-card-header">
                   <div>
-                    <div className="order-card-title">{order.pickup_location} → {order.delivery_location}</div>
+                    <div className="order-card-title">{order.pickup_location} → {order.dropoff_location}</div>
                     <div className="order-meta">
-                      Budget: {order.budget ? `Rp ${order.budget.toLocaleString('id-ID')}` : '—'} &middot; Date: {fmt(order.scheduled_date)}
+                      {order.move_type} · {order.vehicle_type} · {order.distance_km} km · {fmt(order.scheduled_date)}
                     </div>
-                    <div className="order-meta">Client: {order.user_name}</div>
+                    <div className="order-meta" style={{ fontWeight: 600 }}>
+                      {order.final_price
+                        ? `Final: Rp ${Number(order.final_price).toLocaleString('id-ID')}`
+                        : `Estimasi: Rp ${Number(order.estimated_price).toLocaleString('id-ID')}`}
+                    </div>
+                    <div className="order-meta">Pemesan: {order.user_name}</div>
                   </div>
                   <StatusBadge status={order.status} />
                 </div>

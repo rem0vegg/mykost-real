@@ -151,6 +151,16 @@ button {
 .status-in_progress { background: #ede9fe; color: #5b21b6; }
 .status-completed { background: #d1fae5; color: #065f46; }
 .status-cancelled { background: #fee2e2; color: #991b1b; }
+/* Moving V2 statuses */
+.status-DRAFT             { background: #f3f4f6; color: #6b7280; }
+.status-SUBMITTED         { background: #fef3c7; color: #92400e; }
+.status-INSTANT_CONFIRMED { background: #dbeafe; color: #1e40af; }
+.status-REVIEW_REQUIRED   { background: #fef9c3; color: #a16207; }
+.status-ACCEPTED          { background: #ede9fe; color: #5b21b6; }
+.status-ON_GOING          { background: #d1fae5; color: #065f46; }
+.status-COMPLETED         { background: #d1fae5; color: #065f46; font-weight: 700; }
+.status-INVALID           { background: #fee2e2; color: #991b1b; font-weight: 700; }
+.status-CANCELLED         { background: #f3f4f6; color: #6b7280; }
 
 /* Role badge */
 .role-badge {

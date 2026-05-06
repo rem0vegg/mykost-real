@@ -1,0 +1,128 @@
+// Konfigurasi kendaraan — single source of truth
+const VEHICLE_CONFIG = {
+  MOTORCYCLE: {
+    rate_per_km:      2700,
+    max_capacity_kg:  50,
+    label:            'Motor',
+  },
+  VAN: {
+    rate_per_km:      13000,
+    max_capacity_kg:  500,
+    label:            'Van',
+  },
+  PICKUP_BOX: {
+    rate_per_km:      20000,
+    max_capacity_kg:  1500,
+    label:            'Pickup Box',
+  },
+};
+
+const ADDON_DOOR_TO_DOOR   = 20_000;
+const SURCHARGE_HIGH_FLOOR = 20_000; // lantai >= 3 tanpa lift
+const SURCHARGE_HEAVY_TYPE = 40_000; // move_type BERAT (biaya helper)
+const MIN_PRICE            = 30_000;
+const REVIEW_PRICE_BUFFER  = 0.3;    // price_max = estimated * 1.3
+
+function roundUpTo5000(amount) {
+  return Math.ceil(amount / 5000) * 5000;
+}
+
+/**
+ * Hitung estimasi harga berdasarkan input order.
+ * Mengembalikan breakdown lengkap — tidak ada side-effect.
+ */
+function calculatePrice({
+  distance_km,
+  vehicle_type,
+  move_type,
+  pickup_floor    = 1,
+  dropoff_floor   = 1,
+  has_lift        = false,
+  is_round_trip   = false,
+  is_door_to_door = false,
+}) {
+  const vehicle = VEHICLE_CONFIG[vehicle_type];
+  if (!vehicle) throw new Error(`vehicle_type tidak valid: ${vehicle_type}`);
+
+  const effectiveDistance = is_round_trip ? distance_km * 2 : distance_km;
+  const base_price        = Math.round(effectiveDistance * vehicle.rate_per_km);
+
+  let addon_price = 0;
+  if (is_door_to_door) addon_price += ADDON_DOOR_TO_DOOR;
+
+  let surcharge = 0;
+  const maxFloor = Math.max(pickup_floor, dropoff_floor);
+  if (maxFloor >= 3 && !has_lift) surcharge += SURCHARGE_HIGH_FLOOR;
+  if (move_type === 'BERAT')      surcharge += SURCHARGE_HEAVY_TYPE;
+
+  const raw           = base_price + addon_price + surcharge;
+  const bounded       = Math.max(raw, MIN_PRICE);
+  const estimated_price = roundUpTo5000(bounded);
+
+  return { base_price, surcharge, addon_price, estimated_price };
+}
+
+/**
+ * Tentukan apakah order perlu review manual.
+ * Trigger: tipe BERAT, ada barang besar, atau user upload foto.
+ */
+function determineRequiresReview({ move_type, has_large_items, photo_count = 0 }) {
+  return move_type === 'BERAT' || has_large_items === true || photo_count > 0;
+}
+
+/**
+ * Hitung range harga untuk order yang perlu review.
+ * price_min = estimasi normal, price_max = +30% (buffer ketidakpastian).
+ */
+function getPriceRange(estimated_price) {
+  return {
+    price_min: estimated_price,
+    price_max: roundUpTo5000(Math.ceil(estimated_price * (1 + REVIEW_PRICE_BUFFER))),
+  };
+}
+
+/**
+ * Kembalikan array peringatan jika pilihan kendaraan tidak sesuai.
+ * Null jika tidak ada warning.
+ */
+function getVehicleWarning({ move_type, vehicle_type, has_large_items }) {
+  const warnings = [];
+
+  if (move_type === 'BERAT' && vehicle_type === 'MOTORCYCLE') {
+    warnings.push('Tipe BERAT tidak sesuai untuk motor. Disarankan Van atau Pickup Box.');
+  }
+  if (has_large_items && vehicle_type === 'MOTORCYCLE') {
+    warnings.push('Ada barang besar — motor tidak cukup. Gunakan Van atau Pickup Box.');
+  }
+  if (move_type === 'BERAT' && vehicle_type === 'VAN' && has_large_items) {
+    warnings.push('Ada barang besar pada tipe BERAT. Pertimbangkan Pickup Box agar lebih aman.');
+  }
+  if (move_type === 'RINGAN' && vehicle_type === 'PICKUP_BOX') {
+    warnings.push('Pickup Box terlalu besar untuk pindahan ringan. Motor atau Van lebih efisien.');
+  }
+
+  return warnings.length > 0 ? warnings : null;
+}
+
+/**
+ * Rekomendasikan kendaraan upgrade setelah mismatch.
+ * Kembalikan null jika tidak ada rekomendasi (sudah optimal).
+ */
+function getRecommendedUpgrade({ move_type, has_large_items, current_vehicle }) {
+  if (current_vehicle === 'MOTORCYCLE') {
+    return 'VAN';
+  }
+  if (current_vehicle === 'VAN' && (move_type === 'BERAT' || has_large_items)) {
+    return 'PICKUP_BOX';
+  }
+  return null;
+}
+
+module.exports = {
+  VEHICLE_CONFIG,
+  calculatePrice,
+  determineRequiresReview,
+  getPriceRange,
+  getVehicleWarning,
+  getRecommendedUpgrade,
+};
