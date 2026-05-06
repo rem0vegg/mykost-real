@@ -5,6 +5,7 @@ import useAuthStore from '../store/authStore';
 import StatusBadge from '../components/StatusBadge';
 import StatusTimeline from '../components/StatusTimeline';
 import Chat from '../components/Chat';
+import { uploadMovingEvidence } from '../services/api';
 
 export default function MovingOrderDetailPage() {
   const { id } = useParams();
@@ -17,6 +18,11 @@ export default function MovingOrderDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [err, setErr] = useState('');
   const [showStatusForm, setShowStatusForm] = useState(false);
+  
+  // State untuk fitur Upload Evidence
+  const [evidenceFile, setEvidenceFile] = useState(null);
+  const [evidenceType, setEvidenceType] = useState('pickup');
+  const [isUploading, setIsUploading] = useState(false);
 
   const fetchOrder = async () => {
     try {
@@ -45,6 +51,26 @@ export default function MovingOrderDetailPage() {
       setErr(error.response?.data?.error || 'Failed to update status');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleEvidenceUpload = async (e) => {
+    e.preventDefault();
+    if (!evidenceFile) return alert('Pilih file gambar terlebih dahulu!');
+    
+    setIsUploading(true);
+    try {
+      // Menggunakan 'id' dari useParams
+      await uploadMovingEvidence(id, evidenceFile, evidenceType);
+      alert(`Bukti ${evidenceType} berhasil diunggah!`);
+      setEvidenceFile(null);
+      // Refresh data pesanan setelah berhasil mengunggah
+      await fetchOrder();
+    } catch (error) {
+      console.error('Error uploading:', error);
+      alert('Gagal mengunggah foto bukti.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -133,7 +159,45 @@ export default function MovingOrderDetailPage() {
             )}
           </div>
 
-          <div className="card">
+          {/* Form Unggah Bukti Pindahan untuk Mover */}
+          {user?.role === 'mover' && (
+            <div className="card" style={{ marginTop: '1rem' }}>
+              <div className="card-title" style={{ marginBottom: '1rem' }}>Unggah Bukti Pindahan</div>
+              <form onSubmit={handleEvidenceUpload} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                  <select
+                    value={evidenceType}
+                    onChange={(e) => setEvidenceType(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="pickup">Bukti Kondisi Pickup</option>
+                    <option value="delivery">Bukti Kondisi Delivery</option>
+                  </select>
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEvidenceFile(e.target.files[0])}
+                    className="form-control"
+                    style={{ padding: '0.4rem' }}
+                  />
+                </div>
+                
+                <button 
+                  type="submit" 
+                  disabled={isUploading || !evidenceFile}
+                  className="btn btn-primary"
+                  style={{ width: 'fit-content' }}
+                >
+                  {isUploading ? 'Mengunggah...' : 'Unggah Foto Bukti'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          <div className="card" style={{ marginTop: '1rem' }}>
             <div className="card-title" style={{ marginBottom: '1rem' }}>Status History</div>
             <StatusTimeline history={history} />
           </div>
