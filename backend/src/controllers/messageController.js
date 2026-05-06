@@ -8,9 +8,27 @@ const sendSchema = Joi.object({
   moving_order_id: Joi.string().uuid().allow(null),
 });
 
+async function getOrderParticipants(orderId, type) {
+  if (type === 'moving') {
+    const r = await pool.query('SELECT user_id, mover_id FROM moving_orders WHERE id=$1', [orderId]);
+    return r.rows[0] || null;
+  }
+  const r = await pool.query('SELECT user_id, agent_id FROM survey_orders WHERE id=$1', [orderId]);
+  return r.rows[0] || null;
+}
+
+function isParticipant(order, userId, type) {
+  if (type === 'moving') return order.user_id === userId || order.mover_id === userId;
+  return order.user_id === userId || order.agent_id === userId;
+}
+
 async function getMessages(req, res) {
   const { orderId } = req.params;
   const { type } = req.query; // 'survey' or 'moving'
+
+  const order = await getOrderParticipants(orderId, type);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (!isParticipant(order, req.user.id, type)) return res.status(403).json({ error: 'Access denied' });
 
   let result;
   if (type === 'moving') {
@@ -55,6 +73,15 @@ async function sendMessage(req, res) {
   if (error) return res.status(400).json({ error: error.details[0].message });
 
   const { message_text, to_user_id, moving_order_id } = value;
+  const type = moving_order_id ? 'moving' : 'survey';
+  const effectiveOrderId = moving_order_id || orderId;
+
+  const order = await getOrderParticipants(effectiveOrderId, type);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (!isParticipant(order, req.user.id, type)) return res.status(403).json({ error: 'Access denied' });
+  if (!isParticipant(order, to_user_id, type)) {
+    return res.status(403).json({ error: 'Recipient is not a participant in this order' });
+  }
 
   const result = await pool.query(
     `INSERT INTO messages (order_id, moving_order_id, from_user_id, to_user_id, message_text)
