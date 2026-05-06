@@ -29,9 +29,57 @@ export default function UserDashboard() {
 
   // Moving order form
   const [showMovingForm, setShowMovingForm] = useState(false);
-  const [movingForm, setMovingForm] = useState({ pickup_location: '', delivery_location: '', description: '', scheduled_date: '', budget: '' });
+  const MOVING_FORM_DEFAULT = {
+    pickup_location: '', dropoff_location: '', distance_km: '',
+    move_type: 'RINGAN', vehicle_type: 'MOTORCYCLE',
+    pickup_floor: 1, dropoff_floor: 1, has_lift: false,
+    has_large_items: false, is_round_trip: false, is_door_to_door: false,
+    notes: '', scheduled_date: '',
+  };
+  const [movingForm, setMovingForm] = useState(MOVING_FORM_DEFAULT);
+  const [movingEstimate, setMovingEstimate] = useState(null);
+  const [movingWarning, setMovingWarning] = useState(null);
+  const [movingEstimating, setMovingEstimating] = useState(false);
   const [movingSubmitting, setMovingSubmitting] = useState(false);
   const [movingErr, setMovingErr] = useState('');
+
+  const VEHICLES = [
+    { value: 'MOTORCYCLE', label: '🏍️ Motor', desc: 'Maks 50 kg — koper, tas, kardus kecil', rate: 2700 },
+    { value: 'VAN',        label: '🚐 Van',   desc: 'Maks 500 kg — kasur lipat, kardus banyak', rate: 13000 },
+    { value: 'PICKUP_BOX', label: '🚛 Pickup Box', desc: 'Maks 1500 kg — lemari, kasur spring', rate: 20000 },
+  ];
+  const MOVE_TYPES = [
+    { value: 'RINGAN', label: 'Ringan', desc: 'Koper, tas, kardus kecil' },
+    { value: 'SEDANG', label: 'Sedang', desc: 'Beberapa kardus + barang medium' },
+    { value: 'BERAT',  label: 'Berat',  desc: 'Perabot, kasur, lemari' },
+  ];
+
+  const fetchEstimate = async (form) => {
+    if (!form.distance_km || !form.vehicle_type || !form.move_type) return;
+    setMovingEstimating(true);
+    try {
+      const { data } = await api.post('/api/moving-orders/estimate', {
+        distance_km:    parseFloat(form.distance_km),
+        vehicle_type:   form.vehicle_type,
+        move_type:      form.move_type,
+        pickup_floor:   parseInt(form.pickup_floor),
+        dropoff_floor:  parseInt(form.dropoff_floor),
+        has_lift:       form.has_lift,
+        has_large_items:form.has_large_items,
+        is_round_trip:  form.is_round_trip,
+        is_door_to_door:form.is_door_to_door,
+      });
+      setMovingEstimate(data);
+      setMovingWarning(data.vehicle_warning);
+    } catch { setMovingEstimate(null); }
+    setMovingEstimating(false);
+  };
+
+  const handleMovingChange = (updates) => {
+    const next = { ...movingForm, ...updates };
+    setMovingForm(next);
+    fetchEstimate(next);
+  };
 
   const fetchData = async () => {
     try {
@@ -113,14 +161,19 @@ export default function UserDashboard() {
 
   const createMovingOrder = async (e) => {
     e.preventDefault();
+    if (!movingForm.distance_km) return setMovingErr('Jarak wajib diisi');
     setMovingSubmitting(true); setMovingErr('');
     try {
       await api.post('/api/moving-orders', {
         ...movingForm,
-        budget: movingForm.budget ? parseInt(movingForm.budget) : null,
+        distance_km:   parseFloat(movingForm.distance_km),
+        pickup_floor:  parseInt(movingForm.pickup_floor),
+        dropoff_floor: parseInt(movingForm.dropoff_floor),
         scheduled_date: movingForm.scheduled_date || null,
       });
-      setMovingForm({ pickup_location: '', delivery_location: '', description: '', scheduled_date: '', budget: '' });
+      setMovingForm(MOVING_FORM_DEFAULT);
+      setMovingEstimate(null);
+      setMovingWarning(null);
       setShowMovingForm(false);
       await fetchData();
     } catch (err) {
@@ -330,53 +383,177 @@ export default function UserDashboard() {
             <div className="card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid #0f3460' }}>
               <div className="card-title">Buat Order Pindahan</div>
               {movingErr && <div className="alert alert-error">{movingErr}</div>}
-              <form onSubmit={createMovingOrder}>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Lokasi Jemput *</label>
-                    <input className="form-control" value={movingForm.pickup_location} onChange={(e) => setMovingForm({ ...movingForm, pickup_location: e.target.value })} required placeholder="Alamat jemput" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Lokasi Tujuan *</label>
-                    <input className="form-control" value={movingForm.delivery_location} onChange={(e) => setMovingForm({ ...movingForm, delivery_location: e.target.value })} required placeholder="Alamat tujuan" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Budget (Rp)</label>
-                    <input className="form-control" type="number" value={movingForm.budget} onChange={(e) => setMovingForm({ ...movingForm, budget: e.target.value })} placeholder="Opsional" min="0" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Tanggal Pindah</label>
-                    <input className="form-control" type="date" value={movingForm.scheduled_date} onChange={(e) => setMovingForm({ ...movingForm, scheduled_date: e.target.value })} />
-                  </div>
+
+              {/* Step 1 – Lokasi & Jarak */}
+              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Lokasi & Jarak</p>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Lokasi Jemput *</label>
+                  <input className="form-control" value={movingForm.pickup_location}
+                    onChange={(e) => setMovingForm({ ...movingForm, pickup_location: e.target.value })}
+                    required placeholder="Alamat jemput" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Keterangan</label>
-                  <textarea className="form-control" rows={2} value={movingForm.description} maxLength={CHAR_LIMIT} onChange={(e) => setMovingForm({ ...movingForm, description: e.target.value })} placeholder="Barang yang dipindahkan, dll." />
-                  {movingForm.description.length >= CHAR_LIMIT && (
-                    <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: 600 }}>⚠️ Maksimal {CHAR_LIMIT} karakter</span>
+                  <label className="form-label">Lokasi Tujuan *</label>
+                  <input className="form-control" value={movingForm.dropoff_location}
+                    onChange={(e) => setMovingForm({ ...movingForm, dropoff_location: e.target.value })}
+                    required placeholder="Alamat tujuan" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Estimasi Jarak (km) *</label>
+                <input className="form-control" type="number" min="0.1" step="0.1"
+                  value={movingForm.distance_km} placeholder="Contoh: 5.5"
+                  onChange={(e) => handleMovingChange({ distance_km: e.target.value })} />
+                <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Bisa cek di Google Maps</span>
+              </div>
+
+              {/* Step 2 – Tipe Pindahan */}
+              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem', marginTop: '0.75rem' }}>Tipe Pindahan</p>
+              <div className="grid-3" style={{ marginBottom: '0.75rem' }}>
+                {MOVE_TYPES.map((t) => (
+                  <div key={t.value}
+                    onClick={() => handleMovingChange({ move_type: t.value })}
+                    style={{
+                      border: `2px solid ${movingForm.move_type === t.value ? '#0f3460' : '#e5e7eb'}`,
+                      borderRadius: 8, padding: '0.6rem', cursor: 'pointer',
+                      background: movingForm.move_type === t.value ? '#f0f4ff' : '#fff',
+                    }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{t.label}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 3 – Kendaraan */}
+              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Pilih Kendaraan</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                {VEHICLES.map((v) => (
+                  <div key={v.value}
+                    onClick={() => handleMovingChange({ vehicle_type: v.value })}
+                    style={{
+                      border: `2px solid ${movingForm.vehicle_type === v.value ? '#0f3460' : '#e5e7eb'}`,
+                      borderRadius: 8, padding: '0.6rem 1rem', cursor: 'pointer',
+                      background: movingForm.vehicle_type === v.value ? '#f0f4ff' : '#fff',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                    <div>
+                      <span style={{ fontWeight: 700 }}>{v.label}</span>
+                      <span style={{ fontSize: '0.78rem', color: '#6b7280', marginLeft: '0.5rem' }}>{v.desc}</span>
+                    </div>
+                    <span style={{ fontSize: '0.82rem', color: '#0f3460', fontWeight: 600 }}>
+                      Rp {v.rate.toLocaleString('id-ID')}/km
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {movingWarning && movingWarning.map((w, i) => (
+                <div key={i} className="alert" style={{ background: '#fffbeb', borderLeft: '3px solid #f59e0b', color: '#92400e', marginBottom: '0.5rem', padding: '0.6rem 0.75rem', fontSize: '0.85rem' }}>
+                  ⚠️ {w}
+                </div>
+              ))}
+
+              {/* Step 4 – Info Tambahan */}
+              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem', marginTop: '0.75rem' }}>Info Tambahan</p>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Lantai Jemput</label>
+                  <input className="form-control" type="number" min="1" max="50"
+                    value={movingForm.pickup_floor}
+                    onChange={(e) => handleMovingChange({ pickup_floor: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Lantai Tujuan</label>
+                  <input className="form-control" type="number" min="1" max="50"
+                    value={movingForm.dropoff_floor}
+                    onChange={(e) => handleMovingChange({ dropoff_floor: e.target.value })} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                {[
+                  { key: 'has_lift',       label: 'Ada Lift' },
+                  { key: 'has_large_items',label: 'Ada Barang Besar (lemari, kasur spring)' },
+                  { key: 'is_round_trip',  label: 'Pulang Pergi (PP)' },
+                  { key: 'is_door_to_door',label: 'Door-to-Door (+Rp 20.000)' },
+                ].map(({ key, label }) => (
+                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={movingForm[key]}
+                      onChange={(e) => handleMovingChange({ [key]: e.target.checked })} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Catatan (opsional)</label>
+                <textarea className="form-control" rows={2}
+                  value={movingForm.notes} maxLength={CHAR_LIMIT}
+                  onChange={(e) => setMovingForm({ ...movingForm, notes: e.target.value })}
+                  placeholder="Contoh: barang mudah pecah, parkir sempit, dll." />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tanggal Pindah</label>
+                <input className="form-control" type="date"
+                  value={movingForm.scheduled_date}
+                  onChange={(e) => setMovingForm({ ...movingForm, scheduled_date: e.target.value })} />
+              </div>
+
+              {/* Estimasi Harga */}
+              {movingEstimating && <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.5rem' }}>Menghitung harga...</div>}
+              {movingEstimate && (
+                <div style={{ background: '#f0f4ff', border: '1.5px solid #0f3460', borderRadius: 8, padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.4rem', color: '#0f3460' }}>Estimasi Harga</div>
+                  <div style={{ fontSize: '0.85rem', color: '#374151', display: 'grid', gap: '0.2rem' }}>
+                    <div>Tarif dasar: <strong>Rp {movingEstimate.base_price?.toLocaleString('id-ID')}</strong></div>
+                    {movingEstimate.surcharge > 0 && <div>Surcharge: <strong>Rp {movingEstimate.surcharge?.toLocaleString('id-ID')}</strong></div>}
+                    {movingEstimate.addon_price > 0 && <div>Add-on: <strong>Rp {movingEstimate.addon_price?.toLocaleString('id-ID')}</strong></div>}
+                  </div>
+                  {movingEstimate.requires_review ? (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ color: '#92400e', fontWeight: 700 }}>
+                        Perkiraan: Rp {movingEstimate.price_min?.toLocaleString('id-ID')} – Rp {movingEstimate.price_max?.toLocaleString('id-ID')}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#b45309' }}>⚠️ Order ini perlu review admin sebelum dikonfirmasi</div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '0.5rem', fontSize: '1.1rem', fontWeight: 800, color: '#0f3460' }}>
+                      Total: Rp {movingEstimate.estimated_price?.toLocaleString('id-ID')}
+                    </div>
                   )}
                 </div>
-                <button className="btn btn-primary" type="submit" disabled={movingSubmitting}>
-                  {movingSubmitting ? 'Membuat...' : 'Buat Order'}
-                </button>
-              </form>
+              )}
+
+              <button className="btn btn-primary" type="button" onClick={createMovingOrder} disabled={movingSubmitting}>
+                {movingSubmitting ? 'Membuat...' : 'Buat Order Pindahan →'}
+              </button>
             </div>
           )}
           {movingOrders.length === 0 ? (
             <div className="empty-state"><div className="empty-state-icon">🚚</div><p>Belum ada order pindahan.</p></div>
           ) : (
             movingOrders.map((o) => (
-              <div key={o.id} className="order-card" style={{ borderLeftColor: '#0f3460' }}>
+              <div key={o.id} className="order-card" style={{ borderLeftColor: o.status === 'INVALID' ? '#ef4444' : '#0f3460' }}>
                 <div className="order-card-header">
                   <div>
-                    <div className="order-card-title">{o.pickup_location} → {o.delivery_location}</div>
-                    <div className="order-meta">Tanggal: {fmt(o.scheduled_date)} · Budget: {o.budget ? `Rp ${o.budget.toLocaleString('id-ID')}` : '—'}</div>
+                    <div className="order-card-title">{o.pickup_location} → {o.dropoff_location}</div>
+                    <div className="order-meta">
+                      {o.move_type} · {o.vehicle_type} · {o.distance_km} km · Tanggal: {fmt(o.scheduled_date)}
+                    </div>
+                    <div className="order-meta" style={{ fontWeight: 600, color: '#0f3460' }}>
+                      {o.requires_review && o.price_min
+                        ? `Rp ${Number(o.price_min).toLocaleString('id-ID')} – Rp ${Number(o.price_max).toLocaleString('id-ID')}`
+                        : `Rp ${Number(o.estimated_price).toLocaleString('id-ID')}`}
+                    </div>
                     {o.mover_name && <div className="order-meta">Mover: {o.mover_name}</div>}
+                    {o.status === 'INVALID' && o.invalid_reason && (
+                      <div className="order-meta" style={{ color: '#ef4444', fontWeight: 600 }}>
+                        ❌ Mismatch: {o.invalid_reason}
+                      </div>
+                    )}
                   </div>
                   <StatusBadge status={o.status} />
                 </div>
                 <div className="order-actions">
-                  {o.status !== 'pending' && (
+                  {!['DRAFT','INSTANT_CONFIRMED','REVIEW_REQUIRED','INVALID','CANCELLED'].includes(o.status) && (
                     <button className="btn btn-outline btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>💬 Chat Mover</button>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>Lihat Detail</button>
