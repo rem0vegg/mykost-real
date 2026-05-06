@@ -4,6 +4,7 @@ import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import MapPicker from '../components/MapPicker';
 import KotaSelect from '../components/KotaSelect';
+import LocationSearchInput from '../components/LocationSearchInput';
 import { matchKotaFromNominatim } from '../data/kotaList';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -34,9 +35,12 @@ export default function UserDashboard() {
     move_type: 'RINGAN', vehicle_type: 'MOTORCYCLE',
     pickup_floor: 1, dropoff_floor: 1, has_lift: false,
     has_large_items: false, is_round_trip: false, is_door_to_door: false,
-    notes: '', scheduled_date: '',
+    hire_helper: false, notes: '', scheduled_date: '',
   };
   const [movingForm, setMovingForm] = useState(MOVING_FORM_DEFAULT);
+  const [pickupCoords, setPickupCoords]   = useState(null);
+  const [dropoffCoords, setDropoffCoords] = useState(null);
+  const [distanceLoading, setDistanceLoading] = useState(false);
   const [movingEstimate, setMovingEstimate] = useState(null);
   const [movingWarning, setMovingWarning] = useState(null);
   const [movingEstimating, setMovingEstimating] = useState(false);
@@ -48,26 +52,21 @@ export default function UserDashboard() {
     { value: 'VAN',        label: '🚐 Van',   desc: 'Maks 500 kg — kasur lipat, kardus banyak', rate: 13000 },
     { value: 'PICKUP_BOX', label: '🚛 Pickup Box', desc: 'Maks 1500 kg — lemari, kasur spring', rate: 20000 },
   ];
-  const MOVE_TYPES = [
-    { value: 'RINGAN', label: 'Ringan', desc: 'Koper, tas, kardus kecil' },
-    { value: 'SEDANG', label: 'Sedang', desc: 'Beberapa kardus + barang medium' },
-    { value: 'BERAT',  label: 'Berat',  desc: 'Perabot, kasur, lemari' },
-  ];
 
   const fetchEstimate = async (form) => {
-    if (!form.distance_km || !form.vehicle_type || !form.move_type) return;
+    if (!form.distance_km || !form.vehicle_type) return;
     setMovingEstimating(true);
     try {
       const { data } = await api.post('/api/moving-orders/estimate', {
-        distance_km:    parseFloat(form.distance_km),
-        vehicle_type:   form.vehicle_type,
-        move_type:      form.move_type,
-        pickup_floor:   parseInt(form.pickup_floor),
-        dropoff_floor:  parseInt(form.dropoff_floor),
-        has_lift:       form.has_lift,
-        has_large_items:form.has_large_items,
-        is_round_trip:  form.is_round_trip,
-        is_door_to_door:form.is_door_to_door,
+        distance_km:     parseFloat(form.distance_km),
+        vehicle_type:    form.vehicle_type,
+        pickup_floor:    parseInt(form.pickup_floor),
+        dropoff_floor:   parseInt(form.dropoff_floor),
+        has_lift:        form.has_lift,
+        has_large_items: form.has_large_items,
+        is_round_trip:   form.is_round_trip,
+        is_door_to_door: form.is_door_to_door,
+        hire_helper:     form.hire_helper,
       });
       setMovingEstimate(data);
       setMovingWarning(data.vehicle_warning);
@@ -76,9 +75,28 @@ export default function UserDashboard() {
   };
 
   const handleMovingChange = (updates) => {
-    const next = { ...movingForm, ...updates };
+    let next = { ...movingForm, ...updates };
+    // Jika kendaraan diganti ke motor, matikan hire_helper
+    if (updates.vehicle_type === 'MOTORCYCLE') next.hire_helper = false;
     setMovingForm(next);
     fetchEstimate(next);
+  };
+
+  const fetchDistanceAndEstimate = async (pickup, dropoff, currentForm) => {
+    setDistanceLoading(true);
+    try {
+      const resp = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}?overview=false`
+      );
+      const data = await resp.json();
+      if (data.routes?.[0]?.distance) {
+        const km = (data.routes[0].distance / 1000).toFixed(1);
+        const next = { ...currentForm, distance_km: km };
+        setMovingForm(next);
+        fetchEstimate(next);
+      }
+    } catch {}
+    setDistanceLoading(false);
   };
 
   const fetchData = async () => {
@@ -161,19 +179,28 @@ export default function UserDashboard() {
 
   const createMovingOrder = async (e) => {
     e.preventDefault();
-    if (!movingForm.distance_km) return setMovingErr('Jarak wajib diisi');
+    if (!movingForm.pickup_location) return setMovingErr('Lokasi jemput wajib diisi');
+    if (!movingForm.dropoff_location) return setMovingErr('Lokasi tujuan wajib diisi');
+    if (!movingForm.distance_km) return setMovingErr('Jarak belum terhitung — pastikan kedua lokasi sudah dipilih dari dropdown');
     setMovingSubmitting(true); setMovingErr('');
     try {
       await api.post('/api/moving-orders', {
         ...movingForm,
-        distance_km:   parseFloat(movingForm.distance_km),
-        pickup_floor:  parseInt(movingForm.pickup_floor),
-        dropoff_floor: parseInt(movingForm.dropoff_floor),
-        scheduled_date: movingForm.scheduled_date || null,
+        move_type:          'RINGAN',
+        distance_km:        parseFloat(movingForm.distance_km),
+        pickup_floor:       parseInt(movingForm.pickup_floor),
+        dropoff_floor:      parseInt(movingForm.dropoff_floor),
+        pickup_latitude:    pickupCoords?.lat  || null,
+        pickup_longitude:   pickupCoords?.lng  || null,
+        dropoff_latitude:   dropoffCoords?.lat || null,
+        dropoff_longitude:  dropoffCoords?.lng || null,
+        scheduled_date:     movingForm.scheduled_date || null,
       });
       setMovingForm(MOVING_FORM_DEFAULT);
       setMovingEstimate(null);
       setMovingWarning(null);
+      setPickupCoords(null);
+      setDropoffCoords(null);
       setShowMovingForm(false);
       await fetchData();
     } catch (err) {
@@ -375,7 +402,14 @@ export default function UserDashboard() {
       {tab === 'moving' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-            <button className={`btn ${showMovingForm ? 'btn-outline' : 'btn-primary'}`} onClick={() => setShowMovingForm(!showMovingForm)}>
+            <button className={`btn ${showMovingForm ? 'btn-outline' : 'btn-primary'}`} onClick={() => {
+              if (showMovingForm) {
+                setMovingForm(MOVING_FORM_DEFAULT);
+                setMovingEstimate(null); setMovingWarning(null);
+                setPickupCoords(null); setDropoffCoords(null);
+              }
+              setShowMovingForm(!showMovingForm);
+            }}>
               {showMovingForm ? 'Batal' : '+ Order Pindahan'}
             </button>
           </div>
@@ -389,43 +423,49 @@ export default function UserDashboard() {
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Lokasi Jemput *</label>
-                  <input className="form-control" value={movingForm.pickup_location}
-                    onChange={(e) => setMovingForm({ ...movingForm, pickup_location: e.target.value })}
-                    required placeholder="Alamat jemput" />
+                  <LocationSearchInput
+                    value={movingForm.pickup_location}
+                    onTextChange={(text) => setMovingForm((f) => ({ ...f, pickup_location: text }))}
+                    onSelect={({ address, lat, lng }) => {
+                      const coords = { lat, lng };
+                      const updated = { ...movingForm, pickup_location: address };
+                      setPickupCoords(coords);
+                      setMovingForm(updated);
+                      if (dropoffCoords) fetchDistanceAndEstimate(coords, dropoffCoords, updated);
+                    }}
+                    placeholder="Cari alamat jemput..."
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Lokasi Tujuan *</label>
-                  <input className="form-control" value={movingForm.dropoff_location}
-                    onChange={(e) => setMovingForm({ ...movingForm, dropoff_location: e.target.value })}
-                    required placeholder="Alamat tujuan" />
+                  <LocationSearchInput
+                    value={movingForm.dropoff_location}
+                    onTextChange={(text) => setMovingForm((f) => ({ ...f, dropoff_location: text }))}
+                    onSelect={({ address, lat, lng }) => {
+                      const coords = { lat, lng };
+                      const updated = { ...movingForm, dropoff_location: address };
+                      setDropoffCoords(coords);
+                      setMovingForm(updated);
+                      if (pickupCoords) fetchDistanceAndEstimate(pickupCoords, coords, updated);
+                    }}
+                    placeholder="Cari alamat tujuan..."
+                  />
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Estimasi Jarak (km) *</label>
                 <input className="form-control" type="number" min="0.1" step="0.1"
-                  value={movingForm.distance_km} placeholder="Contoh: 5.5"
+                  value={movingForm.distance_km} placeholder="Otomatis dihitung setelah pilih lokasi"
                   onChange={(e) => handleMovingChange({ distance_km: e.target.value })} />
-                <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Bisa cek di Google Maps</span>
+                {distanceLoading
+                  ? <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>Menghitung jarak via OpenStreetMap...</span>
+                  : pickupCoords && dropoffCoords && movingForm.distance_km
+                    ? <span style={{ fontSize: '0.78rem', color: '#10b981' }}>✓ Jarak dihitung otomatis ({movingForm.distance_km} km) — bisa diubah manual</span>
+                    : <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Pilih kedua lokasi dari dropdown untuk hitung jarak otomatis</span>
+                }
               </div>
 
-              {/* Step 2 – Tipe Pindahan */}
-              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem', marginTop: '0.75rem' }}>Tipe Pindahan</p>
-              <div className="grid-3" style={{ marginBottom: '0.75rem' }}>
-                {MOVE_TYPES.map((t) => (
-                  <div key={t.value}
-                    onClick={() => handleMovingChange({ move_type: t.value })}
-                    style={{
-                      border: `2px solid ${movingForm.move_type === t.value ? '#0f3460' : '#e5e7eb'}`,
-                      borderRadius: 8, padding: '0.6rem', cursor: 'pointer',
-                      background: movingForm.move_type === t.value ? '#f0f4ff' : '#fff',
-                    }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{t.label}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t.desc}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Step 3 – Kendaraan */}
+              {/* Step 2 – Kendaraan */}
               <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Pilih Kendaraan</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
                 {VEHICLES.map((v) => (
@@ -453,7 +493,7 @@ export default function UserDashboard() {
                 </div>
               ))}
 
-              {/* Step 4 – Info Tambahan */}
+              {/* Step 3 – Info Tambahan */}
               <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem', marginTop: '0.75rem' }}>Info Tambahan</p>
               <div className="grid-2">
                 <div className="form-group">
@@ -473,7 +513,7 @@ export default function UserDashboard() {
                 {[
                   { key: 'has_lift',       label: 'Ada Lift' },
                   { key: 'has_large_items',label: 'Ada Barang Besar (lemari, kasur spring)' },
-                  { key: 'is_round_trip',  label: 'Pulang Pergi (PP)' },
+                  { key: 'is_round_trip',  label: 'Pulang Pergi (+50% dari total)' },
                   { key: 'is_door_to_door',label: 'Door-to-Door (+Rp 20.000)' },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
@@ -482,6 +522,13 @@ export default function UserDashboard() {
                     {label}
                   </label>
                 ))}
+                {movingForm.vehicle_type !== 'MOTORCYCLE' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={movingForm.hire_helper}
+                      onChange={(e) => handleMovingChange({ hire_helper: e.target.checked })} />
+                    Hire Helper (+Rp 75.000)
+                  </label>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Catatan (opsional)</label>
@@ -506,6 +553,7 @@ export default function UserDashboard() {
                     <div>Tarif dasar: <strong>Rp {movingEstimate.base_price?.toLocaleString('id-ID')}</strong></div>
                     {movingEstimate.surcharge > 0 && <div>Surcharge: <strong>Rp {movingEstimate.surcharge?.toLocaleString('id-ID')}</strong></div>}
                     {movingEstimate.addon_price > 0 && <div>Add-on: <strong>Rp {movingEstimate.addon_price?.toLocaleString('id-ID')}</strong></div>}
+                    {movingEstimate.round_trip_addon > 0 && <div>Pulang pergi (+50%): <strong>Rp {movingEstimate.round_trip_addon?.toLocaleString('id-ID')}</strong></div>}
                   </div>
                   {movingEstimate.requires_review ? (
                     <div style={{ marginTop: '0.5rem' }}>

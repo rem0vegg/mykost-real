@@ -14,13 +14,14 @@ const {
 const estimateSchema = Joi.object({
   distance_km:    Joi.number().positive().required(),
   vehicle_type:   Joi.string().valid('MOTORCYCLE','VAN','PICKUP_BOX').required(),
-  move_type:      Joi.string().valid('RINGAN','SEDANG','BERAT').required(),
+  move_type:      Joi.string().valid('RINGAN','SEDANG','BERAT').default('RINGAN'),
   pickup_floor:   Joi.number().integer().min(1).default(1),
   dropoff_floor:  Joi.number().integer().min(1).default(1),
   has_lift:       Joi.boolean().default(false),
   has_large_items:Joi.boolean().default(false),
   is_round_trip:  Joi.boolean().default(false),
   is_door_to_door:Joi.boolean().default(false),
+  hire_helper:    Joi.boolean().default(false),
 });
 
 const createSchema = Joi.object({
@@ -34,7 +35,7 @@ const createSchema = Joi.object({
   distance_km:        Joi.number().positive().required(),
 
   // Tipe & kendaraan
-  move_type:          Joi.string().valid('RINGAN','SEDANG','BERAT').required(),
+  move_type:          Joi.string().valid('RINGAN','SEDANG','BERAT').default('RINGAN'),
   vehicle_type:       Joi.string().valid('MOTORCYCLE','VAN','PICKUP_BOX').required(),
   vehicle_mismatch_warned: Joi.boolean().default(false),
 
@@ -50,6 +51,7 @@ const createSchema = Joi.object({
   // Add-ons
   is_round_trip:      Joi.boolean().default(false),
   is_door_to_door:    Joi.boolean().default(false),
+  hire_helper:        Joi.boolean().default(false),
 
   scheduled_date:     Joi.date().iso().greater('now').allow(null),
 });
@@ -77,7 +79,7 @@ async function insertHistory(client, { order_id, from_status, to_status, note, c
 }
 
 function buildPricing(value) {
-  const { base_price, surcharge, addon_price, estimated_price } = calculatePrice(value);
+  const { base_price, surcharge, addon_price, round_trip_addon, estimated_price } = calculatePrice(value);
   const requires_review = determineRequiresReview({
     move_type:       value.move_type,
     has_large_items: value.has_large_items,
@@ -85,7 +87,7 @@ function buildPricing(value) {
   });
 
   const priceRange = requires_review ? getPriceRange(estimated_price) : {};
-  return { base_price, surcharge, addon_price, estimated_price, requires_review, ...priceRange };
+  return { base_price, surcharge, addon_price, round_trip_addon, estimated_price, requires_review, ...priceRange };
 }
 
 // ─── Controllers ───────────────────────────────────────────────────────────────
