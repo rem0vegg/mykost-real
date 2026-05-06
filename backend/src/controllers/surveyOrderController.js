@@ -244,8 +244,28 @@ async function getOrderById(req, res) {
   res.json({ order, history: history.rows, surveyResult });
 }
 
+async function getAgentCommissions(req, res) {
+  const result = await pool.query(
+    `SELECT id, kost_name, price, created_at
+     FROM survey_orders
+     WHERE agent_id = $1 AND status = 'completed'
+     ORDER BY created_at DESC`,
+    [req.user.id]
+  );
+
+  const list = result.rows.map((row) => ({
+    id: row.id,
+    orderId: row.id,
+    date: row.created_at,
+    status: 'Paid',
+    amount: row.price,
+  }));
+
+  res.json({ list });
+}
+
 module.exports = {
   createOrder, getUserOrders, payOrder, requestRefund,
   getAvailableOrders, getAgentOrders, acceptOrder, submitSurveyResult,
-  getOrderById,
+  getOrderById, getAgentCommissions,
 };

@@ -151,13 +151,7 @@ export default function UserDashboard() {
 
   return (
     <div className="page">
-      <div className="page-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Dashboard Saya</span>
-        {/* Realisasi: In-app Chat Button Global */}
-        <button className="btn btn-outline" onClick={() => navigate('/chat')}>
-          💬 In-app Chat
-        </button>
-      </div>
+      <div className="page-title">Dashboard Saya</div>
 
       <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
         <div className="stat-card"><div className="stat-number">{stats.pending}</div><div className="stat-label">Menunggu</div></div>
@@ -311,9 +305,8 @@ export default function UserDashboard() {
                   <StatusBadge status={order.status} />
                 </div>
                 <div className="order-actions">
-                  {/* Tombol Chat spesifik untuk order yang sudah di-assign ke Agent */}
                   {order.status !== 'pending_payment' && order.status !== 'finding_agent' && (
-                     <button className="btn btn-outline btn-sm" onClick={() => navigate(`/chat`)}>💬 Chat Agent</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>💬 Chat Agent</button>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
                     {order.status === 'pending_payment' ? '💳 Bayar Sekarang' : 'Lihat Detail'}
@@ -383,9 +376,8 @@ export default function UserDashboard() {
                   <StatusBadge status={o.status} />
                 </div>
                 <div className="order-actions">
-                  {/* Tombol Chat spesifik untuk order Moving yang sudah di-assign */}
                   {o.status !== 'pending' && (
-                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/chat`)}>💬 Chat Mover</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>💬 Chat Mover</button>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>Lihat Detail</button>
                 </div>

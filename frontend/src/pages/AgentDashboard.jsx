@@ -10,14 +10,13 @@ export default function AgentDashboard() {
   const [tab, setTab] = useState('available');
   const [available, setAvailable] = useState([]);
   const [myOrders, setMyOrders] = useState([]);
-  const [commissions, setCommissions] = useState([]); // State untuk Commission Tracking
+  const [commissions, setCommissions] = useState([]);
   const [noKota, setNoKota] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
 
   const fetchData = async () => {
     try {
-      // Menambahkan fetch untuk komisi agen
       const [a, m, c] = await Promise.all([
         api.get('/api/survey-orders/available'),
         api.get('/api/survey-orders/my-orders'),
@@ -52,8 +51,7 @@ export default function AgentDashboard() {
     completed: myOrders.filter((o) => o.status === 'completed').length,
   };
 
-  // Kalkulasi total komisi
-  const totalCommission = commissions.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalCommission = commissions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
   if (loading) return <div className="spinner" />;
 
@@ -83,7 +81,6 @@ export default function AgentDashboard() {
         <button className={`tab-btn ${tab === 'my-orders' ? 'active' : ''}`} onClick={() => setTab('my-orders')}>
           Pekerjaan Saya ({myOrders.length})
         </button>
-        {/* Tab Baru: Commission Tracking */}
         <button className={`tab-btn ${tab === 'commissions' ? 'active' : ''}`} onClick={() => setTab('commissions')}>
           Komisi Saya
         </button>
@@ -170,7 +167,6 @@ export default function AgentDashboard() {
         </>
       )}
 
-      {/* Bagian Commission Tracking */}
       {tab === 'commissions' && (
         <>
           <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0' }}>
@@ -189,8 +185,8 @@ export default function AgentDashboard() {
             commissions.map((comm) => (
               <div key={comm.id} className="order-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div className="order-card-title">Order #{comm.orderId}</div>
-                  <div className="order-meta">Tanggal: {new Date(comm.date).toLocaleDateString('id-ID')}</div>
+                  <div className="order-card-title">Order #{comm.orderId?.slice(0, 8)}</div>
+                  <div className="order-meta">Tanggal: {comm.date ? new Date(comm.date).toLocaleDateString('id-ID') : '—'}</div>
                   <div className="order-meta">
                     Status: <strong style={{ color: comm.status === 'Paid' ? '#10b981' : '#f59e0b' }}>{comm.status}</strong>
                   </div>
