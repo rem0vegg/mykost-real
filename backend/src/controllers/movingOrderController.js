@@ -61,7 +61,7 @@ async function getOrderById(req, res) {
   if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
   const order = result.rows[0];
 
-  if (order.user_id !== req.user.id && order.mover_id !== req.user.id && req.user.role !== 'mover') {
+  if (order.user_id !== req.user.id && order.mover_id !== req.user.id) {
     return res.status(403).json({ error: 'Access denied' });
   }
 
@@ -102,20 +102,20 @@ async function getMoverOrders(req, res) {
 
 async function acceptOrder(req, res) {
   const { id } = req.params;
-  const result = await pool.query('SELECT * FROM moving_orders WHERE id = $1', [id]);
 
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
-  const order = result.rows[0];
-
-  if (order.status !== 'pending') {
-    return res.status(400).json({ error: 'Order is no longer available' });
-  }
-
+  // Atomic: only succeeds if order is still pending, preventing double-accept race
   const updated = await pool.query(
     `UPDATE moving_orders SET mover_id = $1, status = 'assigned', updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2 RETURNING *`,
+     WHERE id = $2 AND status = 'pending'
+     RETURNING *`,
     [req.user.id, id]
   );
+
+  if (updated.rows.length === 0) {
+    const exists = await pool.query('SELECT id FROM moving_orders WHERE id = $1', [id]);
+    if (exists.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    return res.status(400).json({ error: 'Order is no longer available' });
+  }
 
   await pool.query(
     'INSERT INTO moving_order_status_history (order_id, status, note, changed_by) VALUES ($1, $2, $3, $4)',
