@@ -38,6 +38,32 @@ function StatusPill({ status }) {
   return <span className={cfg.cls}>{cfg.label}</span>;
 }
 
+const SURVEY_HISTORY_STATUS = ['completed', 'cancelled', 'refunded'];
+const MOVING_HISTORY_STATUS = ['COMPLETED', 'CANCELLED', 'INVALID'];
+
+function HistoryDivider({ count, expanded, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="mk-row"
+      style={{
+        gap: 10, alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', marginTop: 8, marginBottom: 4,
+        background: 'var(--surface-2)', border: '1px solid var(--line)',
+        borderRadius: 'var(--r-md)', cursor: 'pointer', width: '100%',
+        fontFamily: 'var(--font-body)',
+      }}
+    >
+      <span className="mk-row" style={{ gap: 8, color: 'var(--ink-soft)', fontSize: 13, fontWeight: 600 }}>
+        <Icon name="archive" size={14} />
+        Riwayat ({count})
+      </span>
+      <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} style={{ color: 'var(--ink-mute)' }} />
+    </button>
+  );
+}
+
 export default function UserDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -47,6 +73,8 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const tab = searchParams.get('tab') === 'moving' ? 'moving' : 'survey';
   const setTab = (t) => setSearchParams(t === 'survey' ? {} : { tab: t }, { replace: true });
+  const [showSurveyHistory, setShowSurveyHistory] = useState(false);
+  const [showMovingHistory, setShowMovingHistory] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [location, setLocation] = useState(null);
   const [form, setForm] = useState({ kost_name: '', address: '', kecamatan: '', kota: '', notes: '' });
@@ -453,15 +481,11 @@ export default function UserDashboard() {
               </div>
             )}
 
-            {orders.length === 0 && !showForm ? (
-              <div className="mk-empty">
-                <div className="mk-empty-icon"><Icon name="clipboard" size={44} /></div>
-                <div className="mk-empty-title">Belum ada order survei</div>
-                <div className="mk-empty-sub">Buat order pertamamu dan kami carikan surveyor terpercaya di kotamu.</div>
-              </div>
-            ) : (
-              orders.map((order) => (
-                <article key={order.id} className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {(() => {
+              const activeSurvey  = orders.filter((o) => !SURVEY_HISTORY_STATUS.includes(o.status));
+              const historySurvey = orders.filter((o) =>  SURVEY_HISTORY_STATUS.includes(o.status));
+              const renderCard = (order, dim = false) => (
+                <article key={order.id} className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, opacity: dim ? 0.78 : 1 }}>
                   <div className="mk-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="mk-row" style={{ gap: 6, color: 'var(--ink-mute)', fontSize: 12, marginBottom: 5 }}>
@@ -486,7 +510,7 @@ export default function UserDashboard() {
                     <StatusPill status={order.status} />
                   </div>
                   <div className="mk-row" style={{ gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-                    {order.status !== 'pending_payment' && order.status !== 'finding_agent' && (
+                    {order.status !== 'pending_payment' && order.status !== 'finding_agent' && order.status !== 'cancelled' && order.status !== 'refunded' && (
                       <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
                         <Icon name="message" size={14} /> Chat
                       </button>
@@ -497,8 +521,34 @@ export default function UserDashboard() {
                     </button>
                   </div>
                 </article>
-              ))
-            )}
+              );
+
+              if (orders.length === 0 && !showForm) {
+                return (
+                  <div className="mk-empty">
+                    <div className="mk-empty-icon"><Icon name="clipboard" size={44} /></div>
+                    <div className="mk-empty-title">Belum ada order survei</div>
+                    <div className="mk-empty-sub">Buat order pertamamu dan kami carikan surveyor terpercaya di kotamu.</div>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  {activeSurvey.length === 0 && historySurvey.length > 0 && !showForm && (
+                    <div style={{ fontSize: 13, color: 'var(--ink-mute)', textAlign: 'center', padding: '14px 0' }}>
+                      Tidak ada order aktif. Riwayat tersimpan di bawah.
+                    </div>
+                  )}
+                  {activeSurvey.map((o) => renderCard(o))}
+                  {historySurvey.length > 0 && (
+                    <>
+                      <HistoryDivider count={historySurvey.length} expanded={showSurveyHistory} onToggle={() => setShowSurveyHistory((v) => !v)} />
+                      {showSurveyHistory && historySurvey.map((o) => renderCard(o, true))}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -752,18 +802,23 @@ export default function UserDashboard() {
               </div>
             )}
 
-            {movingOrders.length === 0 ? (
-              <div className="mk-empty">
-                <div className="mk-empty-icon"><Icon name="truck" size={44} /></div>
-                <div className="mk-empty-title">Belum ada order pindahan</div>
-                <div className="mk-empty-sub">Buat order pertamamu dan dapatkan estimasi harga instan.</div>
-              </div>
-            ) : (
-              movingOrders.map((o) => {
+            {(() => {
+              const activeMoving  = movingOrders.filter((o) => !MOVING_HISTORY_STATUS.includes(o.status));
+              const historyMoving = movingOrders.filter((o) =>  MOVING_HISTORY_STATUS.includes(o.status));
+              if (movingOrders.length === 0) {
+                return (
+                  <div className="mk-empty">
+                    <div className="mk-empty-icon"><Icon name="truck" size={44} /></div>
+                    <div className="mk-empty-title">Belum ada order pindahan</div>
+                    <div className="mk-empty-sub">Buat order pertamamu dan dapatkan estimasi harga instan.</div>
+                  </div>
+                );
+              }
+              const renderMovingCard = (o, dim = false) => {
                 const canPay    = o.status === 'PENDING_PAYMENT';
                 const canCancel = !o.mover_id && ['PENDING_PAYMENT','INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(o.status);
                 return (
-                  <article key={o.id} className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <article key={o.id} className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, opacity: dim ? 0.78 : 1 }}>
                     <div className="mk-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Route display */}
@@ -831,8 +886,24 @@ export default function UserDashboard() {
                     </div>
                   </article>
                 );
-              })
-            )}
+              };
+              return (
+                <>
+                  {activeMoving.length === 0 && historyMoving.length > 0 && (
+                    <div style={{ fontSize: 13, color: 'var(--ink-mute)', textAlign: 'center', padding: '14px 0' }}>
+                      Tidak ada order aktif. Riwayat tersimpan di bawah.
+                    </div>
+                  )}
+                  {activeMoving.map((o) => renderMovingCard(o))}
+                  {historyMoving.length > 0 && (
+                    <>
+                      <HistoryDivider count={historyMoving.length} expanded={showMovingHistory} onToggle={() => setShowMovingHistory((v) => !v)} />
+                      {showMovingHistory && historyMoving.map((o) => renderMovingCard(o, true))}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
