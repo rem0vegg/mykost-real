@@ -124,6 +124,15 @@ export default function MovingOrderDetailPage() {
 
   const updateStatus = async (e) => {
     e.preventDefault();
+    if (statusForm.status === 'COMPLETED') {
+      const hasPickup   = (order.pickup_photo_urls   || []).length > 0;
+      const hasDelivery = (order.delivery_photo_urls || []).length > 0;
+      if (!hasPickup || !hasDelivery) {
+        const missing = [!hasPickup && 'pickup', !hasDelivery && 'delivery'].filter(Boolean).join(' dan ');
+        setStatusErr(`Wajib upload bukti foto ${missing} sebelum menyelesaikan order`);
+        return;
+      }
+    }
     setUpdating(true); setStatusErr('');
     try {
       const payload = { status: statusForm.status, note: statusForm.note || undefined };
@@ -588,9 +597,16 @@ export default function MovingOrderDetailPage() {
                     />
                   </div>
                   <div className="mk-row" style={{ gap: 10 }}>
-                    <button className="mk-btn mk-btn-primary mk-btn-sm" type="submit" disabled={updating}>
-                      {updating ? 'Menyimpan...' : 'Simpan'}
-                    </button>
+                    {(() => {
+                      const completedBlocked = statusForm.status === 'COMPLETED' && (
+                        !(order.pickup_photo_urls || []).length || !(order.delivery_photo_urls || []).length
+                      );
+                      return (
+                        <button className="mk-btn mk-btn-primary mk-btn-sm" type="submit" disabled={updating || completedBlocked}>
+                          {updating ? 'Menyimpan...' : 'Simpan'}
+                        </button>
+                      );
+                    })()}
                     <button className="mk-btn mk-btn-ghost mk-btn-sm" type="button" onClick={() => setShowStatusForm(false)}>Batal</button>
                   </div>
                 </form>
