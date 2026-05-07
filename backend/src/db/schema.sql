@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS survey_orders (
     CHECK (payment_status IN ('pending', 'paid', 'refunded')),
   -- Order status
   status VARCHAR(30) NOT NULL DEFAULT 'pending_payment'
-    CHECK (status IN ('pending_payment', 'finding_agent', 'assigned', 'completed', 'refunded', 'cancelled')),
+    CHECK (status IN ('pending_payment', 'finding_agent', 'assigned', 'result_submitted', 'completed', 'refunded', 'cancelled')),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -212,3 +212,33 @@ CREATE INDEX IF NOT EXISTS idx_moving_orders_user_id ON moving_orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_moving_orders_mover_id ON moving_orders(mover_id);
 CREATE INDEX IF NOT EXISTS idx_messages_order_id ON messages(order_id);
 CREATE INDEX IF NOT EXISTS idx_messages_read ON messages(is_read);
+
+-- ── Reviews & Complaints ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS reviews (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewee_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  order_id      UUID NOT NULL,
+  order_type    VARCHAR(20) NOT NULL CHECK (order_type IN ('survey','moving')),
+  rating        INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment       TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, order_id, order_type)
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee ON reviews(reviewee_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_order    ON reviews(order_type, order_id);
+
+CREATE TABLE IF NOT EXISTS complaints (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  order_id      UUID NOT NULL,
+  order_type    VARCHAR(20) NOT NULL CHECK (order_type IN ('survey','moving')),
+  category      VARCHAR(50) NOT NULL,
+  description   TEXT NOT NULL,
+  status        VARCHAR(20) NOT NULL DEFAULT 'open'
+                  CHECK (status IN ('open','in_review','resolved')),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_complaints_user  ON complaints(user_id);
+CREATE INDEX IF NOT EXISTS idx_complaints_order ON complaints(order_type, order_id);

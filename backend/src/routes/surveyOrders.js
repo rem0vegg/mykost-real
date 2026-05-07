@@ -9,6 +9,7 @@ router.post('/', authenticate, requireRole('user'), upload.array('attachment', 5
 router.get('/', authenticate, requireRole('user'), ctrl.getUserOrders);
 router.post('/:id/pay', authenticate, requireRole('user'), ctrl.payOrder);
 router.post('/:id/refund', authenticate, requireRole('user'), ctrl.requestRefund);
+router.post('/:id/finalize', authenticate, requireRole('user'), ctrl.finalizeOrder);
 
 // ── agent ─────────────────────────────────────────────────────────────────────
 // NOTE: /available, /my-orders, /agent/commissions must come BEFORE /:id

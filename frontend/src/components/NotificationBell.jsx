@@ -60,8 +60,13 @@ export default function NotificationBell() {
       try { await api.post(`/api/notifications/${n.id}/read`); } catch {}
       await fetchNotifs();
     }
-    if (n.order_id && n.order_type === 'moving') navigate(`/moving-orders/${n.order_id}`);
-    else if (n.order_id && n.order_type === 'survey') navigate(`/survey-orders/${n.order_id}`);
+    if (!n.order_id || !n.order_type) return;
+
+    // Tentukan hash navigation berdasarkan tipe notif
+    // - new_message → langsung ke section #chat
+    const hash = n.type === 'new_message' ? '#chat' : '';
+    const base = n.order_type === 'moving' ? '/moving-orders/' : '/survey-orders/';
+    navigate(`${base}${n.order_id}${hash}`);
   };
 
   const markAllRead = async () => {

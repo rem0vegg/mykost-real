@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import MapPicker from '../components/MapPicker';
@@ -17,10 +17,11 @@ const PRICE = 75000;
 
 export default function UserDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [movingOrders, setMovingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('survey');
+  const [tab, setTab] = useState(searchParams.get('tab') === 'moving' ? 'moving' : 'survey');
   const [showForm, setShowForm] = useState(false);
   const [location, setLocation] = useState(null);
   const [form, setForm] = useState({ kost_name: '', address: '', kecamatan: '', kota: '', notes: '' });
@@ -147,6 +148,24 @@ export default function UserDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Prefill form pindahan dari sessionStorage (dari "Lanjut Pesan Pindahan" di survey)
+  useEffect(() => {
+    const raw = sessionStorage.getItem('movingPrefill');
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      if (data.dropoff_location) {
+        setMovingForm((f) => ({ ...f, dropoff_location: data.dropoff_location }));
+        if (data.dropoff_latitude && data.dropoff_longitude) {
+          setDropoffCoords({ lat: data.dropoff_latitude, lng: data.dropoff_longitude });
+        }
+        setShowMovingForm(true);
+        setTab('moving');
+      }
+    } catch {}
+    sessionStorage.removeItem('movingPrefill');
+  }, []);
 
   const onLocationSelect = (loc) => {
     setLocation(loc);

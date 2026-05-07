@@ -4,6 +4,7 @@ const STATUS_MAP = {
   pending_payment:    { label: 'Menunggu Pembayaran', bg: '#fef3c7', fg: '#92400e' },
   finding_agent:      { label: 'Mencari Agent',       bg: '#dbeafe', fg: '#1e40af' },
   assigned:           { label: 'Sudah Ditugaskan',    bg: '#e0e7ff', fg: '#3730a3' },
+  result_submitted:   { label: 'Hasil Survei Siap',   bg: '#fef3c7', fg: '#92400e' },
   completed:          { label: 'Selesai',             bg: '#d1fae5', fg: '#065f46' },
   refunded:           { label: 'Dana Dikembalikan',   bg: '#f3f4f6', fg: '#374151' },
   cancelled:          { label: 'Dibatalkan',          bg: '#fee2e2', fg: '#991b1b' },

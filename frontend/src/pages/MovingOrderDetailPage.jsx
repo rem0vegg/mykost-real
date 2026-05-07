@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import StatusBadge from '../components/StatusBadge';
 import StatusTimeline from '../components/StatusTimeline';
 import Chat from '../components/Chat';
 import ExpandableText, { maskPhone } from '../components/ExpandableText';
+import ReviewForm from '../components/ReviewForm';
+import ComplaintForm from '../components/ComplaintForm';
 
 const VEHICLE_LABEL = { MOTORCYCLE: '🏍️ Motor', VAN: '🚐 Van', PICKUP_BOX: '🚛 Pickup Box' };
 
@@ -43,6 +45,8 @@ export default function MovingOrderDetailPage() {
   const { id }      = useParams();
   const { user }    = useAuthStore();
   const navigate    = useNavigate();
+  const location    = useLocation();
+  const chatRef     = useRef(null);
 
   const [order,   setOrder]   = useState(null);
   const [history, setHistory] = useState([]);
@@ -87,6 +91,13 @@ export default function MovingOrderDetailPage() {
   };
 
   useEffect(() => { fetchOrder(); }, [id]);
+
+  // Auto-scroll ke chat jika URL ada hash #chat (dari klik notif chat)
+  useEffect(() => {
+    if (location.hash === '#chat' && chatRef.current && order) {
+      setTimeout(() => chatRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+    }
+  }, [location.hash, order]);
 
   const updateStatus = async (e) => {
     e.preventDefault();
@@ -593,6 +604,22 @@ export default function MovingOrderDetailPage() {
             </div>
           )}
 
+          {/* Review & Complaint setelah COMPLETED (untuk user) */}
+          {isUser && order.status === 'COMPLETED' && order.mover_id && (
+            <>
+              <div style={{ marginTop: '1rem' }}>
+                <ReviewForm
+                  orderId={order.id}
+                  orderType="moving"
+                  revieweeName={order.mover_name}
+                />
+              </div>
+              <div style={{ marginTop: '1rem' }}>
+                <ComplaintForm orderId={order.id} orderType="moving" />
+              </div>
+            </>
+          )}
+
           {/* Status History */}
           <div className="card" style={{ marginTop: '1rem' }}>
             <div className="card-title" style={{ marginBottom: '1rem' }}>Riwayat Status</div>
@@ -601,7 +628,7 @@ export default function MovingOrderDetailPage() {
         </div>
 
         {/* Kolom kanan: Chat */}
-        <div className="card">
+        <div className="card" ref={chatRef} id="chat">
           <div className="card-title" style={{ marginBottom: '1rem' }}>Chat</div>
           {otherUser ? (
             <Chat orderId={id} toUserId={otherUser} orderType="moving" />

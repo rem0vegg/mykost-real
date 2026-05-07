@@ -185,13 +185,47 @@ async function submitSurveyResult(req, res) {
   }
 
   await pool.query(
-    `UPDATE survey_orders SET status='completed', updated_at=CURRENT_TIMESTAMP WHERE id=$1`,
+    `UPDATE survey_orders SET status='result_submitted', updated_at=CURRENT_TIMESTAMP WHERE id=$1`,
     [id]
   );
-  await addHistory(id, 'completed', 'Hasil survei dikirim oleh agent.', req.user.id);
-  await notify(order.user_id, 'survey_complete', 'Hasil survei tersedia!',
-    `Hasil survei kost "${order.kost_name}" telah dikirim oleh agent.`, id, 'survey');
+  await addHistory(id, 'result_submitted', 'Hasil survei dikirim oleh agent.', req.user.id);
+  await notify(order.user_id, 'survey_result_ready', 'Hasil survei tersedia!',
+    `Hasil survei kost "${order.kost_name}" telah dikirim. Silakan cek hasilnya dan pilih langkah selanjutnya.`, id, 'survey');
   res.json({ success: true });
+}
+
+/**
+ * POST /survey-orders/:id/finalize
+ * User memutuskan: complete (tutup order) atau proceed_moving (lanjut ke pindahan)
+ * Kedua-duanya menutup status survey ke 'completed'.
+ */
+async function finalizeOrder(req, res) {
+  const { id } = req.params;
+  const { action } = req.body;
+
+  if (!['complete','proceed_moving'].includes(action)) {
+    return res.status(400).json({ error: 'Action harus complete atau proceed_moving' });
+  }
+
+  const found = await pool.query('SELECT * FROM survey_orders WHERE id = $1', [id]);
+  if (!found.rows.length) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+  const order = found.rows[0];
+  if (order.user_id !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+  if (order.status !== 'result_submitted') {
+    return res.status(400).json({ error: 'Order tidak dalam status menunggu keputusan' });
+  }
+
+  const updated = await pool.query(
+    `UPDATE survey_orders SET status='completed', updated_at=CURRENT_TIMESTAMP WHERE id=$1 RETURNING *`,
+    [id]
+  );
+  const note = action === 'proceed_moving'
+    ? 'User puas dengan hasil survei, lanjut ke order pindahan.'
+    : 'User menutup order.';
+  await addHistory(id, 'completed', note, req.user.id);
+
+  res.json({ order: updated.rows[0], action });
 }
 
 // ─── shared ──────────────────────────────────────────────────────────────────
@@ -267,5 +301,6 @@ async function getAgentCommissions(req, res) {
 module.exports = {
   createOrder, getUserOrders, payOrder, requestRefund,
   getAvailableOrders, getAgentOrders, acceptOrder, submitSurveyResult,
+  finalizeOrder,
   getOrderById, getAgentCommissions,
 };
