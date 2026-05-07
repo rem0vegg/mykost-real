@@ -1,5 +1,6 @@
 const Joi  = require('joi');
 const pool = require('../db/pool');
+const notify = require('../utils/notify');
 const {
   calculatePrice,
   determineRequiresReview,
@@ -448,6 +449,15 @@ async function acceptOrder(req, res) {
     [id, `Diambil oleh mover ${req.user.name}`, req.user.id]
   );
 
+  await notify(
+    order.user_id,
+    'moving_accepted',
+    `Mover ${req.user.name} menerima order Anda`,
+    `Order pindahan ${order.pickup_location?.slice(0, 40)}… telah diambil oleh ${req.user.name}.`,
+    order.id,
+    'moving'
+  );
+
   res.json({ order });
 }
 
@@ -499,6 +509,16 @@ async function updateOrderStatus(req, res) {
      VALUES ($1,$2,$3,$4,$5)`,
     [id, order.status, value.status, value.note || null, req.user.id]
   );
+
+  // Kirim notifikasi ke user
+  const statusMessages = {
+    ON_GOING:  { title: 'Pindahan dimulai',  body: `Mover ${req.user.name} sedang mengangkut barang Anda.` },
+    COMPLETED: { title: 'Pindahan selesai',  body: `Pindahan Anda telah selesai. Terima kasih!` },
+  };
+  const msg = statusMessages[value.status];
+  if (msg) {
+    await notify(order.user_id, `moving_${value.status.toLowerCase()}`, msg.title, msg.body, order.id, 'moving');
+  }
 
   res.json({ order: updated.rows[0] });
 }
@@ -563,6 +583,15 @@ async function reportMismatch(req, res) {
       has_large_items: order.has_large_items,
       current_vehicle: order.vehicle_type,
     });
+
+    await notify(
+      order.user_id,
+      'moving_mismatch',
+      'Order dibatalkan oleh mover',
+      `Mover melaporkan ketidaksesuaian: ${value.reason}. Anda bisa pesan ulang dengan kendaraan yang sesuai.`,
+      order.id,
+      'moving'
+    );
 
     res.json({
       order:      updated.rows[0],

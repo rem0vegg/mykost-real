@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import Navbar from './components/Navbar';
@@ -9,32 +9,17 @@ import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import SurveyOrderDetailPage from './pages/SurveyOrderDetailPage';
 import MovingOrderDetailPage from './pages/MovingOrderDetailPage';
-import api from './services/api';
 
 export default function App() {
-  const { token, fetchMe, user } = useAuthStore();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { token, fetchMe } = useAuthStore();
 
   useEffect(() => {
     if (token) fetchMe();
   }, [token]);
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchUnread = async () => {
-      try {
-        const { data } = await api.get('/api/messages/unread');
-        setUnreadCount(data.count);
-      } catch {}
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 15000);
-    return () => clearInterval(interval);
-  }, [user]);
-
   return (
     <BrowserRouter>
-      {token && <Navbar unreadCount={unreadCount} />}
+      {token && <Navbar />}
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

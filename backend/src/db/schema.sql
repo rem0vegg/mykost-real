@@ -191,7 +191,9 @@ CREATE TABLE IF NOT EXISTS notifications (
   type VARCHAR(50) NOT NULL,
   title VARCHAR(255) NOT NULL,
   body TEXT,
-  order_id UUID REFERENCES survey_orders(id) ON DELETE SET NULL,
+  order_id UUID,                              -- generic: bisa survey_order atau moving_order
+  order_type VARCHAR(20)                      -- 'survey' atau 'moving'
+    CHECK (order_type IS NULL OR order_type IN ('survey','moving')),
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

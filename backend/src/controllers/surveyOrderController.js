@@ -73,7 +73,7 @@ async function payOrder(req, res) {
   );
   for (const a of agents.rows) {
     await notify(a.id, 'new_order', 'Order survei baru!',
-      `Order untuk "${order.kost_name}" di ${order.kota} tersedia.`, id);
+      `Order untuk "${order.kost_name}" di ${order.kota} tersedia.`, id, 'survey');
   }
   res.json({ order: updated.rows[0] });
 }
@@ -95,7 +95,7 @@ async function requestRefund(req, res) {
   );
   await addHistory(id, 'refunded', 'Order dibatalkan oleh user. Pembayaran akan dikembalikan.', req.user.id);
   await notify(req.user.id, 'refunded', 'Refund diproses',
-    `Order "${order.kost_name}" dibatalkan. Dana akan dikembalikan.`, id);
+    `Order "${order.kost_name}" dibatalkan. Dana akan dikembalikan.`, id, 'survey');
   res.json({ order: updated.rows[0] });
 }
 
@@ -153,7 +153,7 @@ async function acceptOrder(req, res) {
   }
   await addHistory(id, 'assigned', `Order diterima oleh agent ${req.user.name}`, req.user.id);
   await notify(updated.rows[0].user_id, 'order_assigned', 'Agent ditemukan!',
-    `Agent ${req.user.name} telah menerima order survei "${updated.rows[0].kost_name}".`, id);
+    `Agent ${req.user.name} telah menerima order survei "${updated.rows[0].kost_name}".`, id, 'survey');
   res.json({ order: updated.rows[0] });
 }
 
@@ -190,7 +190,7 @@ async function submitSurveyResult(req, res) {
   );
   await addHistory(id, 'completed', 'Hasil survei dikirim oleh agent.', req.user.id);
   await notify(order.user_id, 'survey_complete', 'Hasil survei tersedia!',
-    `Hasil survei kost "${order.kost_name}" telah dikirim oleh agent.`, id);
+    `Hasil survei kost "${order.kost_name}" telah dikirim oleh agent.`, id, 'survey');
   res.json({ success: true });
 }
 
