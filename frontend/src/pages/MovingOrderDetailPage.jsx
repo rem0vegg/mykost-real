@@ -94,6 +94,7 @@ export default function MovingOrderDetailPage() {
   const [reportResult,   setReportResult]   = useState(null);
 
   const [evidenceUploading, setEvidenceUploading] = useState({ pickup: false, delivery: false });
+  const [evidenceErr,       setEvidenceErr]       = useState({ pickup: '', delivery: '' });
 
   const [showRebookForm, setShowRebookForm] = useState(false);
   const [rebookVehicle,  setRebookVehicle]  = useState('VAN');
@@ -225,7 +226,12 @@ export default function MovingOrderDetailPage() {
   const uploadEvidence = async (e, stage) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    if (files.length > 5) { alert('Maksimal 5 foto'); e.target.value = ''; return; }
+    if (files.length > 5) {
+      setEvidenceErr((p) => ({ ...p, [stage]: 'Maksimal 5 foto per upload' }));
+      e.target.value = '';
+      return;
+    }
+    setEvidenceErr((p) => ({ ...p, [stage]: '' }));
     setEvidenceUploading((p) => ({ ...p, [stage]: true }));
     try {
       const fd = new FormData();
@@ -234,7 +240,7 @@ export default function MovingOrderDetailPage() {
       await fetchOrder();
       e.target.value = '';
     } catch (err) {
-      alert(err.response?.data?.error || 'Gagal upload bukti');
+      setEvidenceErr((p) => ({ ...p, [stage]: err.response?.data?.error || 'Gagal upload bukti' }));
     } finally {
       setEvidenceUploading((p) => ({ ...p, [stage]: false }));
     }
@@ -450,12 +456,17 @@ export default function MovingOrderDetailPage() {
                       )}
                     </div>
                     {isMover && order.status !== 'COMPLETED' && (
-                      <label className="mk-btn mk-btn-ghost mk-btn-sm" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-                        <Icon name="camera" size={14} />
-                        {evidenceUploading.pickup ? 'Mengunggah...' : 'Upload Foto Pickup'}
-                        <input type="file" multiple accept="image/*" style={{ display: 'none' }}
-                          onChange={(e) => uploadEvidence(e, 'pickup')} disabled={evidenceUploading.pickup} />
-                      </label>
+                      <>
+                        <label className="mk-btn mk-btn-ghost mk-btn-sm" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                          <Icon name="camera" size={14} />
+                          {evidenceUploading.pickup ? 'Mengunggah...' : 'Upload Foto Pickup'}
+                          <input type="file" multiple accept="image/*" style={{ display: 'none' }}
+                            onChange={(e) => uploadEvidence(e, 'pickup')} disabled={evidenceUploading.pickup} />
+                        </label>
+                        {evidenceErr.pickup && (
+                          <div style={{ fontSize: 12, color: 'var(--err)', marginTop: 6 }}>{evidenceErr.pickup}</div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -478,12 +489,17 @@ export default function MovingOrderDetailPage() {
                       )}
                     </div>
                     {isMover && order.status !== 'COMPLETED' && (
-                      <label className="mk-btn mk-btn-ghost mk-btn-sm" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-                        <Icon name="camera" size={14} />
-                        {evidenceUploading.delivery ? 'Mengunggah...' : 'Upload Foto Delivery'}
-                        <input type="file" multiple accept="image/*" style={{ display: 'none' }}
-                          onChange={(e) => uploadEvidence(e, 'delivery')} disabled={evidenceUploading.delivery} />
-                      </label>
+                      <>
+                        <label className="mk-btn mk-btn-ghost mk-btn-sm" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                          <Icon name="camera" size={14} />
+                          {evidenceUploading.delivery ? 'Mengunggah...' : 'Upload Foto Delivery'}
+                          <input type="file" multiple accept="image/*" style={{ display: 'none' }}
+                            onChange={(e) => uploadEvidence(e, 'delivery')} disabled={evidenceUploading.delivery} />
+                        </label>
+                        {evidenceErr.delivery && (
+                          <div style={{ fontSize: 12, color: 'var(--err)', marginTop: 6 }}>{evidenceErr.delivery}</div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

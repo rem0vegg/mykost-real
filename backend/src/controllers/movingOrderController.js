@@ -633,7 +633,7 @@ async function updateOrderStatus(req, res) {
     `UPDATE moving_orders
      SET status = $1,
          final_price = COALESCE($2, final_price),
-         completed_at = CASE WHEN $1 = 'COMPLETED' THEN NOW() ELSE completed_at END,
+         completed_at = CASE WHEN $1::text = 'COMPLETED' THEN NOW() ELSE completed_at END,
          updated_at = NOW()
      WHERE id = $3
      RETURNING *`,
