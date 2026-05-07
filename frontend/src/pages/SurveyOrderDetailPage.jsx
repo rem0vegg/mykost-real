@@ -29,7 +29,7 @@ function StatusPill({ status }) {
 
 export default function SurveyOrderDetailPage() {
   const { id } = useParams();
-  const { user } = useAuthStore();
+  const { user, capabilities } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const chatRef = useRef(null);
@@ -172,7 +172,8 @@ export default function SurveyOrderDetailPage() {
   if (!order) return null;
 
   const isOwner = order.user_id === user.id;
-  const isAssignedAgent = user.role === 'agent' && order.agent_id === user.id;
+  const hasSurveyorCap = (capabilities || []).some(c => c.capability === 'surveyor' && c.status === 'active');
+  const isAssignedAgent = (user.role === 'agent' || hasSurveyorCap) && order.agent_id === user.id;
 
   const chatPartnerId = (() => {
     if (['pending_payment', 'finding_agent', 'refunded', 'cancelled'].includes(order.status)) return null;
@@ -250,7 +251,7 @@ export default function SurveyOrderDetailPage() {
                 </div>
               )}
               {order.notes && (
-                <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                   "{order.notes}"
                 </div>
               )}

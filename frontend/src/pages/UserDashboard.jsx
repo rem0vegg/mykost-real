@@ -41,11 +41,12 @@ function StatusPill({ status }) {
 export default function UserDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [movingOrders, setMovingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState(searchParams.get('tab') === 'moving' ? 'moving' : 'survey');
+  const tab = searchParams.get('tab') === 'moving' ? 'moving' : 'survey';
+  const setTab = (t) => setSearchParams(t === 'survey' ? {} : { tab: t }, { replace: true });
   const [showForm, setShowForm] = useState(false);
   const [location, setLocation] = useState(null);
   const [form, setForm] = useState({ kost_name: '', address: '', kecamatan: '', kota: '', notes: '' });

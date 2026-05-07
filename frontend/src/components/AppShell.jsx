@@ -9,7 +9,6 @@ export const USER_NAV = [
   { id: 'home',    icon: 'home',      label: 'Beranda',     href: '/dashboard' },
   { id: 'survey',  icon: 'clipboard', label: 'Survei',      href: '/dashboard?tab=survey' },
   { id: 'moving',  icon: 'truck',     label: 'Pindahan',    href: '/dashboard?tab=moving' },
-  { id: 'chat',    icon: 'message',   label: 'Pesan',       href: '/dashboard?tab=chat' },
   { id: 'profile', icon: 'user',      label: 'Profil',      href: '/profile' },
 ];
 
@@ -17,7 +16,6 @@ export const AGENT_NAV = [
   { id: 'home',    icon: 'list',      label: 'Order Tersedia', href: '/dashboard' },
   { id: 'my',      icon: 'clipboard', label: 'Pekerjaan Saya', href: '/dashboard?tab=my' },
   { id: 'earn',    icon: 'wallet',    label: 'Komisi',          href: '/dashboard?tab=earn' },
-  { id: 'chat',    icon: 'message',   label: 'Pesan',           href: '/dashboard?tab=chat' },
   { id: 'profile', icon: 'user',      label: 'Profil',          href: '/profile' },
 ];
 
@@ -25,7 +23,6 @@ export const MOVER_NAV = [
   { id: 'home',    icon: 'list',      label: 'Job Tersedia',   href: '/dashboard' },
   { id: 'my',      icon: 'package',   label: 'Job Saya',        href: '/dashboard?tab=my' },
   { id: 'earn',    icon: 'wallet',    label: 'Penghasilan',     href: '/dashboard?tab=earn' },
-  { id: 'chat',    icon: 'message',   label: 'Pesan',           href: '/dashboard?tab=chat' },
   { id: 'profile', icon: 'user',      label: 'Profil',          href: '/profile' },
 ];
 
@@ -43,10 +40,9 @@ function getActiveWorkspace(user, capabilities) {
 }
 
 function getActiveNavId(pathname, search) {
-  if (pathname === '/profile') return 'profile';
+  if (pathname !== '/dashboard') return pathname.replace('/', '');
   const tab = new URLSearchParams(search).get('tab');
-  if (!tab || tab === 'survey') return pathname === '/dashboard' && !tab ? 'home' : tab || 'home';
-  return tab;
+  return tab || 'home';
 }
 
 // ── TopBar ────────────────────────────────────────────────────────

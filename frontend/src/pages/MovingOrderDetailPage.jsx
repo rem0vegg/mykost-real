@@ -71,7 +71,7 @@ function OpTag({ children, variant }) {
 
 export default function MovingOrderDetailPage() {
   const { id }   = useParams();
-  const { user } = useAuthStore();
+  const { user, capabilities } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const chatRef  = useRef(null);
@@ -176,10 +176,11 @@ export default function MovingOrderDetailPage() {
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
   if (!order)  return null;
 
-  const isMover   = user.role === 'mover' && order.mover_id === user.id;
-  const isUser    = user.role === 'user'  && order.user_id  === user.id;
-  const canAccept = user.role === 'mover' && !order.mover_id && order.status === 'INSTANT_CONFIRMED' && order.payment_status === 'paid';
-  const otherUser = user.role === 'user'  ? order.mover_id  : order.user_id;
+  const hasMoverCap = (capabilities || []).some(c => c.capability === 'mover' && c.status === 'active');
+  const isMover   = (user.role === 'mover' || hasMoverCap) && order.mover_id === user.id;
+  const isUser    = !isMover && order.user_id === user.id;
+  const canAccept = (user.role === 'mover' || hasMoverCap) && !order.mover_id && order.status === 'INSTANT_CONFIRMED' && order.payment_status === 'paid';
+  const otherUser = isMover ? order.user_id : order.mover_id;
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
   const rp  = (n) => n != null ? `Rp ${Number(n).toLocaleString('id-ID')}` : '—';

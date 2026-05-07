@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import Icon from '../components/Icon';
@@ -42,6 +42,7 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
               marginTop: 8, padding: '8px 11px',
               background: 'var(--surface-2)', borderRadius: 'var(--r-sm)',
               fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.45, fontStyle: 'italic',
+              wordBreak: 'break-word', overflowWrap: 'anywhere',
             }}>
               "{order.notes}"
             </div>
@@ -67,7 +68,10 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
       </div>
 
       <div className="mk-row" style={{ gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-        <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => onView(order.id)}>
+        <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => {
+          if (!isMyOrder) { alert('Terima order terlebih dahulu untuk mengakses detail.'); return; }
+          onView(order.id);
+        }}>
           Detail
         </button>
         {isMyOrder ? (
@@ -94,7 +98,14 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
 export default function AgentDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [tab, setTab] = useState('available');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const _urlTab = searchParams.get('tab');
+  const tab = _urlTab === 'my' ? 'my-orders' : _urlTab === 'earn' ? 'commissions' : 'available';
+  const setTab = (t) => {
+    if (t === 'available') setSearchParams({}, { replace: true });
+    else if (t === 'my-orders') setSearchParams({ tab: 'my' }, { replace: true });
+    else if (t === 'commissions') setSearchParams({ tab: 'earn' }, { replace: true });
+  };
   const [available, setAvailable] = useState([]);
   const [myOrders, setMyOrders] = useState([]);
   const [commissions, setCommissions] = useState([]);

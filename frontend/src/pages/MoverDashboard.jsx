@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Icon from '../components/Icon';
 
@@ -83,7 +83,10 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
       </div>
 
       <div className="mk-row" style={{ gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-        <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => navigate(`/moving-orders/${order.id}`)}>
+        <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => {
+          if (!isMyJob) { alert('Ambil job terlebih dahulu untuk mengakses detail.'); return; }
+          navigate(`/moving-orders/${order.id}`);
+        }}>
           Detail
         </button>
         {isMyJob ? (
@@ -107,7 +110,14 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
 
 export default function MoverDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('available');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const _urlTab = searchParams.get('tab');
+  const tab = _urlTab === 'my' ? 'my-jobs' : _urlTab === 'earn' ? 'earnings' : 'available';
+  const setTab = (t) => {
+    if (t === 'available') setSearchParams({}, { replace: true });
+    else if (t === 'my-jobs') setSearchParams({ tab: 'my' }, { replace: true });
+    else if (t === 'earnings') setSearchParams({ tab: 'earn' }, { replace: true });
+  };
   const [available, setAvailable] = useState([]);
   const [myJobs, setMyJobs] = useState([]);
   const [earnings, setEarnings] = useState(null);
