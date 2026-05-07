@@ -35,12 +35,14 @@ export default function UserDashboard() {
     move_type: 'RINGAN', vehicle_type: 'MOTORCYCLE',
     pickup_floor: 1, dropoff_floor: 1, has_lift: false,
     has_large_items: false, is_round_trip: false, is_door_to_door: false,
-    hire_helper: false, notes: '', scheduled_date: '',
+    extra_helper: false, notes: '', scheduled_date: '',
   };
   const [movingForm, setMovingForm] = useState(MOVING_FORM_DEFAULT);
   const [pickupCoords, setPickupCoords]   = useState(null);
   const [dropoffCoords, setDropoffCoords] = useState(null);
   const [distanceLoading, setDistanceLoading] = useState(false);
+  const [movingPhotos, setMovingPhotos] = useState([]);
+  const [movingPhotoErr, setMovingPhotoErr] = useState('');
   const [movingEstimate, setMovingEstimate] = useState(null);
   const [movingWarning, setMovingWarning] = useState(null);
   const [movingEstimating, setMovingEstimating] = useState(false);
@@ -66,7 +68,7 @@ export default function UserDashboard() {
         has_large_items: form.has_large_items,
         is_round_trip:   form.is_round_trip,
         is_door_to_door: form.is_door_to_door,
-        hire_helper:     form.hire_helper,
+        extra_helper:     form.extra_helper,
       });
       setMovingEstimate(data);
       setMovingWarning(data.vehicle_warning);
@@ -76,8 +78,8 @@ export default function UserDashboard() {
 
   const handleMovingChange = (updates) => {
     let next = { ...movingForm, ...updates };
-    // Jika kendaraan diganti ke motor, matikan hire_helper
-    if (updates.vehicle_type === 'MOTORCYCLE') next.hire_helper = false;
+    // Jika kendaraan diganti ke motor, matikan extra_helper
+    if (updates.vehicle_type === 'MOTORCYCLE') next.extra_helper = false;
     setMovingForm(next);
     fetchEstimate(next);
   };
@@ -97,6 +99,33 @@ export default function UserDashboard() {
       }
     } catch {}
     setDistanceLoading(false);
+  };
+
+  const handleMovingPhotosChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) { setMovingPhotos([]); setMovingPhotoErr(''); return; }
+    if (files.length > MAX_ATTACHMENTS) {
+      setMovingPhotoErr(`Maksimal ${MAX_ATTACHMENTS} foto`);
+      e.target.value = '';
+      setMovingPhotos([]);
+      return;
+    }
+    for (const f of files) {
+      if (!ALLOWED_IMAGE_TYPES.includes(f.type)) {
+        setMovingPhotoErr('Hanya JPG / PNG / WebP yang diizinkan');
+        e.target.value = '';
+        setMovingPhotos([]);
+        return;
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        setMovingPhotoErr('Maksimal 5 MB per foto');
+        e.target.value = '';
+        setMovingPhotos([]);
+        return;
+      }
+    }
+    setMovingPhotoErr('');
+    setMovingPhotos(files);
   };
 
   const fetchData = async () => {
@@ -182,9 +211,12 @@ export default function UserDashboard() {
     if (!movingForm.pickup_location) return setMovingErr('Lokasi jemput wajib diisi');
     if (!movingForm.dropoff_location) return setMovingErr('Lokasi tujuan wajib diisi');
     if (!movingForm.distance_km) return setMovingErr('Jarak belum terhitung — pastikan kedua lokasi sudah dipilih dari dropdown');
+    if (movingPhotos.length === 0) return setMovingErr('Upload minimal 1 foto barang');
+    if (movingPhotos.length > MAX_ATTACHMENTS) return setMovingErr(`Maksimal ${MAX_ATTACHMENTS} foto barang`);
+    if (movingPhotoErr) return setMovingErr(movingPhotoErr);
     setMovingSubmitting(true); setMovingErr('');
     try {
-      await api.post('/api/moving-orders', {
+      const { data } = await api.post('/api/moving-orders', {
         ...movingForm,
         move_type:          'RINGAN',
         distance_km:        parseFloat(movingForm.distance_km),
@@ -196,11 +228,26 @@ export default function UserDashboard() {
         dropoff_longitude:  dropoffCoords?.lng || null,
         scheduled_date:     movingForm.scheduled_date || null,
       });
+
+      // Upload foto setelah order dibuat
+      const orderId = data.order?.id;
+      if (orderId && movingPhotos.length > 0) {
+        const fd = new FormData();
+        movingPhotos.forEach((f) => fd.append('photos', f));
+        try {
+          await api.post(`/api/moving-orders/${orderId}/photos`, fd);
+        } catch {
+          // Order tetap dibuat, foto bisa di-upload ulang dari halaman detail
+        }
+      }
+
       setMovingForm(MOVING_FORM_DEFAULT);
       setMovingEstimate(null);
       setMovingWarning(null);
       setPickupCoords(null);
       setDropoffCoords(null);
+      setMovingPhotos([]);
+      setMovingPhotoErr('');
       setShowMovingForm(false);
       await fetchData();
     } catch (err) {
@@ -407,6 +454,7 @@ export default function UserDashboard() {
                 setMovingForm(MOVING_FORM_DEFAULT);
                 setMovingEstimate(null); setMovingWarning(null);
                 setPickupCoords(null); setDropoffCoords(null);
+                setMovingPhotos([]); setMovingPhotoErr('');
               }
               setShowMovingForm(!showMovingForm);
             }}>
@@ -524,9 +572,9 @@ export default function UserDashboard() {
                 ))}
                 {movingForm.vehicle_type !== 'MOTORCYCLE' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={movingForm.hire_helper}
-                      onChange={(e) => handleMovingChange({ hire_helper: e.target.checked })} />
-                    Hire Helper (+Rp 75.000)
+                    <input type="checkbox" checked={movingForm.extra_helper}
+                      onChange={(e) => handleMovingChange({ extra_helper: e.target.checked })} />
+                    Extra Helper (+Rp 75.000)
                   </label>
                 )}
               </div>
@@ -536,6 +584,18 @@ export default function UserDashboard() {
                   value={movingForm.notes} maxLength={CHAR_LIMIT}
                   onChange={(e) => setMovingForm({ ...movingForm, notes: e.target.value })}
                   placeholder="Contoh: barang mudah pecah, parkir sempit, dll." />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Foto Barang * (min. 1, maks. {MAX_ATTACHMENTS} foto)</label>
+                <input type="file" className="form-control"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple onChange={handleMovingPhotosChange} />
+                {movingPhotoErr
+                  ? <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: 600 }}>⚠️ {movingPhotoErr}</span>
+                  : movingPhotos.length > 0
+                    ? <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>✓ {movingPhotos.length} foto dipilih</span>
+                    : <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Format: JPG, PNG, WebP · Maks. 5 MB/foto</span>
+                }
               </div>
               <div className="form-group">
                 <label className="form-label">Tanggal Pindah</label>

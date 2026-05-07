@@ -21,7 +21,7 @@ const estimateSchema = Joi.object({
   has_large_items:Joi.boolean().default(false),
   is_round_trip:  Joi.boolean().default(false),
   is_door_to_door:Joi.boolean().default(false),
-  hire_helper:    Joi.boolean().default(false),
+  extra_helper:    Joi.boolean().default(false),
 });
 
 const createSchema = Joi.object({
@@ -51,7 +51,7 @@ const createSchema = Joi.object({
   // Add-ons
   is_round_trip:      Joi.boolean().default(false),
   is_door_to_door:    Joi.boolean().default(false),
-  hire_helper:        Joi.boolean().default(false),
+  extra_helper:        Joi.boolean().default(false),
 
   scheduled_date:     Joi.date().iso().greater('now').allow(null),
 });

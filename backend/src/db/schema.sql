@@ -68,28 +68,100 @@ CREATE TABLE IF NOT EXISTS survey_result_photos (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── Moving v2: vehicles, orders, history, driver reports ──────────────────────
+CREATE TABLE IF NOT EXISTS vehicle_types (
+  type            VARCHAR(20) PRIMARY KEY
+                    CHECK (type IN ('MOTORCYCLE','VAN','PICKUP_BOX')),
+  rate_per_km     INT  NOT NULL,
+  max_capacity_kg INT  NOT NULL,
+  recommended_for TEXT NOT NULL
+);
+
+INSERT INTO vehicle_types (type, rate_per_km, max_capacity_kg, recommended_for) VALUES
+  ('MOTORCYCLE', 2700,    50,   'Barang ringan: koper, tas, kardus kecil'),
+  ('VAN',        13000,   500,  'Barang sedang: kasur lipat, kardus banyak, barang medium'),
+  ('PICKUP_BOX', 20000,   1500, 'Barang besar/berat: lemari, kasur spring, perabot')
+ON CONFLICT (type) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS moving_orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  mover_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  pickup_location VARCHAR(255) NOT NULL,
-  delivery_location VARCHAR(255) NOT NULL,
-  description TEXT,
-  scheduled_date DATE,
-  budget INT,
-  status VARCHAR(50) DEFAULT 'pending'
-    CHECK (status IN ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id               UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mover_id              UUID REFERENCES users(id) ON DELETE SET NULL,
+
+  pickup_location       TEXT NOT NULL,
+  pickup_latitude       DECIMAL(10,8),
+  pickup_longitude      DECIMAL(11,8),
+  dropoff_location      TEXT NOT NULL,
+  dropoff_latitude      DECIMAL(10,8),
+  dropoff_longitude     DECIMAL(11,8),
+  distance_km           DECIMAL(8,2) NOT NULL CHECK (distance_km > 0),
+
+  move_type             VARCHAR(10) NOT NULL DEFAULT 'RINGAN'
+                          CHECK (move_type IN ('RINGAN','SEDANG','BERAT')),
+
+  vehicle_type          VARCHAR(20) NOT NULL REFERENCES vehicle_types(type),
+  vehicle_mismatch_warned BOOLEAN DEFAULT FALSE,
+
+  pickup_floor          INT NOT NULL DEFAULT 1 CHECK (pickup_floor >= 1),
+  dropoff_floor         INT NOT NULL DEFAULT 1 CHECK (dropoff_floor >= 1),
+  has_lift              BOOLEAN DEFAULT FALSE,
+  notes                 TEXT,
+
+  has_large_items       BOOLEAN DEFAULT FALSE,
+
+  photo_urls            TEXT[] DEFAULT '{}',
+
+  base_price            INT NOT NULL CHECK (base_price >= 0),
+  surcharge             INT NOT NULL DEFAULT 0 CHECK (surcharge >= 0),
+  addon_price           INT NOT NULL DEFAULT 0 CHECK (addon_price >= 0),
+  estimated_price       INT NOT NULL CHECK (estimated_price > 0),
+  price_min             INT,
+  price_max             INT,
+  final_price           INT,
+
+  is_round_trip         BOOLEAN DEFAULT FALSE,
+  is_door_to_door       BOOLEAN DEFAULT FALSE,
+
+  requires_review       BOOLEAN DEFAULT FALSE,
+
+  status                VARCHAR(30) NOT NULL DEFAULT 'DRAFT'
+                          CHECK (status IN (
+                            'DRAFT','SUBMITTED','INSTANT_CONFIRMED',
+                            'REVIEW_REQUIRED','ACCEPTED','ON_GOING',
+                            'COMPLETED','INVALID','CANCELLED'
+                          )),
+
+  invalid_reason        VARCHAR(30)
+                          CHECK (invalid_reason IN (
+                            'OVER_CAPACITY','BARANG_TIDAK_SESUAI','TIDAK_AMAN'
+                          )),
+
+  rebooked_from         UUID REFERENCES moving_orders(id) ON DELETE SET NULL,
+
+  scheduled_date        TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS driver_reports (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL REFERENCES moving_orders(id) ON DELETE CASCADE,
+  driver_id   UUID NOT NULL REFERENCES users(id),
+  reason      VARCHAR(30) NOT NULL
+                CHECK (reason IN ('OVER_CAPACITY','BARANG_TIDAK_SESUAI','TIDAK_AMAN')),
+  photo_url   VARCHAR(500) NOT NULL,
+  notes       TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS moving_order_status_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES moving_orders(id) ON DELETE CASCADE,
-  status VARCHAR(50) NOT NULL,
-  note TEXT,
-  changed_by UUID NOT NULL REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id     UUID NOT NULL REFERENCES moving_orders(id) ON DELETE CASCADE,
+  from_status  VARCHAR(30),
+  to_status    VARCHAR(30) NOT NULL,
+  note         TEXT,
+  changed_by   UUID NOT NULL REFERENCES users(id),
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS messages (
