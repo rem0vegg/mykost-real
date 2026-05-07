@@ -33,6 +33,11 @@ ALTER TABLE moving_orders
   ));
 
 ALTER TABLE moving_orders ALTER COLUMN status SET DEFAULT 'PENDING_PAYMENT';
+
+-- move_type: add if missing (main branch schema didn't have it), else just set default
+ALTER TABLE moving_orders
+  ADD COLUMN IF NOT EXISTS move_type VARCHAR(10) NOT NULL DEFAULT 'RINGAN'
+    CHECK (move_type IN ('RINGAN','SEDANG','BERAT'));
 ALTER TABLE moving_orders ALTER COLUMN move_type SET DEFAULT 'RINGAN';
 
 -- ── survey_orders: result_submitted state ────────────────────────────
@@ -86,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_complaints_order ON complaints(order_type, order_
 UPDATE moving_orders mo
 SET completed_at = COALESCE(
   (SELECT MAX(created_at) FROM moving_order_status_history h
-    WHERE h.order_id = mo.id AND h.to_status = 'COMPLETED'),
+    WHERE h.order_id = mo.id AND h.status = 'COMPLETED'),
   mo.updated_at
 )
 WHERE mo.status = 'COMPLETED' AND mo.completed_at IS NULL;
