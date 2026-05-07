@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import Icon from './Icon';
 
 const CATEGORIES = [
   { value: 'service_quality', label: 'Kualitas layanan buruk' },
@@ -13,15 +14,11 @@ const CATEGORIES = [
 const CAT_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label]));
 
 const COMPLAINT_STATUS = {
-  open:      { label: 'Diterima',     bg: '#fef3c7', fg: '#92400e' },
-  in_review: { label: 'Sedang Ditinjau', bg: '#dbeafe', fg: '#1e40af' },
-  resolved:  { label: 'Selesai',      bg: '#d1fae5', fg: '#065f46' },
+  open:      { cls: 'mk-pill mk-pill-warn', label: 'Diterima' },
+  in_review: { cls: 'mk-pill mk-pill-info', label: 'Sedang Ditinjau' },
+  resolved:  { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
 };
 
-/**
- * Form & list komplain untuk satu order.
- * Props: orderId, orderType
- */
 export default function ComplaintForm({ orderId, orderType }) {
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -64,56 +61,69 @@ export default function ComplaintForm({ orderId, orderType }) {
   if (loading) return null;
 
   return (
-    <div className="card" style={{ borderLeft: '4px solid #ef4444' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>📢 Komplain</div>
+    <div className="mk-card" style={{ padding: 20 }}>
+      <div className="mk-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div className="mk-row" style={{ gap: 8 }}>
+          <Icon name="alert-circle" size={16} style={{ color: 'var(--err)' }} />
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>Komplain</div>
+        </div>
         {!showForm && (
-          <button className="btn btn-outline btn-sm" onClick={() => setShowForm(true)}
-            style={{ color: '#dc2626', borderColor: '#fca5a5' }}>+ Ajukan Komplain</button>
+          <button
+            className="mk-btn mk-btn-ghost mk-btn-sm"
+            style={{ color: 'var(--err)', borderColor: 'var(--err)' }}
+            onClick={() => setShowForm(true)}
+          >
+            <Icon name="plus" size={13} /> Ajukan Komplain
+          </button>
         )}
       </div>
 
       {showForm && (
-        <form onSubmit={submit} style={{ marginBottom: '0.75rem' }}>
-          {err && <div className="alert alert-error">{err}</div>}
-          <div className="form-group">
-            <label className="form-label">Kategori</label>
-            <select className="form-control" value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
+        <form onSubmit={submit} style={{ marginBottom: 14 }}>
+          {err && <div className="mk-alert mk-alert-err" style={{ marginBottom: 12 }}>{err}</div>}
+          <div className="mk-field" style={{ marginBottom: 14 }}>
+            <label className="mk-label">Kategori</label>
+            <select className="mk-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Deskripsi</label>
-            <textarea className="form-control" rows={3} maxLength={2000}
+          <div className="mk-field" style={{ marginBottom: 14 }}>
+            <label className="mk-label">Deskripsi</label>
+            <textarea
+              className="mk-input"
+              rows={3}
+              maxLength={2000}
               placeholder="Jelaskan apa yang terjadi (min. 10 karakter)"
-              value={desc} onChange={(e) => setDesc(e.target.value)} />
+              style={{ resize: 'vertical' }}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={submitting}>
+          <div className="mk-row" style={{ gap: 10 }}>
+            <button className="mk-btn mk-btn-primary mk-btn-sm" type="submit" disabled={submitting}>
               {submitting ? 'Mengirim...' : 'Kirim Komplain'}
             </button>
-            <button type="button" className="btn btn-outline btn-sm" onClick={() => setShowForm(false)}>Batal</button>
+            <button type="button" className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => setShowForm(false)}>Batal</button>
           </div>
         </form>
       )}
 
       {items.length === 0 ? (
-        !showForm && <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Belum ada komplain untuk order ini.</div>
+        !showForm && (
+          <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Belum ada komplain untuk order ini.</div>
+        )
       ) : (
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {items.map((c) => {
             const cfg = COMPLAINT_STATUS[c.status] || COMPLAINT_STATUS.open;
             return (
-              <div key={c.id} style={{ background: '#f9fafb', borderRadius: 6, padding: '0.65rem 0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{CAT_LABEL[c.category] || c.category}</div>
-                  <span style={{
-                    background: cfg.bg, color: cfg.fg, padding: '0.15rem 0.5rem',
-                    borderRadius: 999, fontSize: '0.7rem', fontWeight: 600,
-                  }}>{cfg.label}</span>
+              <div key={c.id} style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
+                <div className="mk-row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{CAT_LABEL[c.category] || c.category}</div>
+                  <span className={cfg.cls} style={{ fontSize: 11 }}>{cfg.label}</span>
                 </div>
-                <div style={{ fontSize: '0.85rem', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{c.description}</div>
-                <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.3rem' }}>
+                <div style={{ fontSize: 13, wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{c.description}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 6 }}>
                   {new Date(c.created_at).toLocaleString('id-ID')}
                 </div>
               </div>

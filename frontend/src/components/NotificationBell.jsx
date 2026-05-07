@@ -1,39 +1,37 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import Icon from './Icon';
 
 const TYPE_ICON = {
-  new_message:        '💬',
-  moving_accepted:    '✅',
-  moving_on_going:    '🚚',
-  moving_completed:   '🎉',
-  moving_mismatch:    '⚠️',
-  survey_assigned:    '👤',
-  survey_completed:   '✅',
+  new_message:      'message',
+  moving_accepted:  'check-circle',
+  moving_on_going:  'truck',
+  moving_completed: 'check-circle',
+  moving_mismatch:  'alert-circle',
+  survey_assigned:  'user',
+  survey_completed: 'check-circle',
 };
 
 function fmtRelative(ts) {
   const diff = Date.now() - new Date(ts).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)    return 'baru saja';
-  if (m < 60)   return `${m} menit lalu`;
+  if (m < 1)  return 'baru saja';
+  if (m < 60) return `${m} menit lalu`;
   const h = Math.floor(m / 60);
-  if (h < 24)   return `${h} jam lalu`;
+  if (h < 24) return `${h} jam lalu`;
   const d = Math.floor(h / 24);
-  if (d < 7)    return `${d} hari lalu`;
+  if (d < 7)  return `${d} hari lalu`;
   return new Date(ts).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
 export default function NotificationBell() {
-  const [items, setItems]         = useState([]);
-  const [unreadCount, setUnread]  = useState(0);
-  const [open, setOpen]           = useState(false);
-  const containerRef              = useRef(null);
-  const navigate                  = useNavigate();
-
-  // Track terakhir yang kita lihat supaya skip setState kalau tidak ada perubahan
-  // → mencegah re-render bell tiap 15 detik kalau tidak ada notif baru.
-  const lastSigRef = useRef('');
+  const [items, setItems]        = useState([]);
+  const [unreadCount, setUnread] = useState(0);
+  const [open, setOpen]          = useState(false);
+  const containerRef             = useRef(null);
+  const navigate                 = useNavigate();
+  const lastSigRef               = useRef('');
 
   const fetchNotifs = async () => {
     try {
@@ -48,7 +46,6 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchNotifs();
-    // Skip polling saat tab tidak visible — hemat bandwidth & DB load
     const tick = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
     const t = setInterval(tick, 15000);
     const onVisible = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
@@ -59,7 +56,6 @@ export default function NotificationBell() {
     };
   }, []);
 
-  // Close dropdown saat klik di luar
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
@@ -75,9 +71,6 @@ export default function NotificationBell() {
       await fetchNotifs();
     }
     if (!n.order_id || !n.order_type) return;
-
-    // Tentukan hash navigation berdasarkan tipe notif
-    // - new_message → langsung ke section #chat
     const hash = n.type === 'new_message' ? '#chat' : '';
     const base = n.order_type === 'moving' ? '/moving-orders/' : '/survey-orders/';
     navigate(`${base}${n.order_id}${hash}`);
@@ -95,15 +88,17 @@ export default function NotificationBell() {
         aria-label="Notifikasi"
         style={{
           background: 'transparent', border: 'none', cursor: 'pointer',
-          fontSize: '1.3rem', position: 'relative', color: '#fff', padding: '0.25rem 0.5rem',
+          position: 'relative', color: 'inherit', padding: '6px 8px',
+          borderRadius: 'var(--r-sm)', display: 'grid', placeItems: 'center',
+          lineHeight: 0,
         }}
       >
-        🔔
+        <Icon name="bell" size={20} />
         {unreadCount > 0 && (
           <span style={{
-            position: 'absolute', top: 0, right: 0,
-            background: '#e94560', color: '#fff',
-            borderRadius: 999, fontSize: '0.65rem', fontWeight: 700,
+            position: 'absolute', top: 2, right: 2,
+            background: 'var(--err)', color: '#fff',
+            borderRadius: 999, fontSize: 10, fontWeight: 700,
             minWidth: 16, height: 16, padding: '0 4px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             lineHeight: 1,
@@ -117,26 +112,29 @@ export default function NotificationBell() {
         <div style={{
           position: 'absolute', top: 'calc(100% + 8px)', right: 0,
           width: 340, maxHeight: 440, overflowY: 'auto',
-          background: '#fff', color: '#1a1a2e',
-          border: '1px solid #e5e7eb', borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          background: 'var(--surface)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r-md)',
+          boxShadow: 'var(--shadow-lg)',
           zIndex: 1000,
         }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '0.75rem 1rem', borderBottom: '1px solid #f3f4f6',
+            padding: '12px 16px', borderBottom: '1px solid var(--line)',
           }}>
-            <span style={{ fontWeight: 700 }}>Notifikasi</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14 }}>Notifikasi</span>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} style={{
-                background: 'none', border: 'none', color: '#0f3460',
-                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-              }}>Tandai semua dibaca</button>
+              <button
+                onClick={markAllRead}
+                style={{ background: 'none', border: 'none', color: 'var(--brand)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+              >
+                Tandai semua dibaca
+              </button>
             )}
           </div>
 
           {items.length === 0 ? (
-            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.88rem' }}>
+            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>
               Belum ada notifikasi
             </div>
           ) : (
@@ -145,37 +143,39 @@ export default function NotificationBell() {
                 key={n.id}
                 onClick={() => onClickItem(n)}
                 style={{
-                  display: 'flex', gap: '0.6rem',
-                  padding: '0.7rem 1rem', cursor: 'pointer',
-                  borderBottom: '1px solid #f3f4f6',
-                  background: n.is_read ? '#fff' : '#f0f9ff',
-                  transition: 'background 0.15s',
+                  display: 'flex', gap: 10,
+                  padding: '10px 16px', cursor: 'pointer',
+                  borderBottom: '1px solid var(--line)',
+                  background: n.is_read ? 'transparent' : 'var(--brand-soft)',
+                  transition: 'background .1s',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                onMouseLeave={(e) => e.currentTarget.style.background = n.is_read ? '#fff' : '#f0f9ff'}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = n.is_read ? 'transparent' : 'var(--brand-soft)'; }}
               >
-                <div style={{ fontSize: '1.1rem', flexShrink: 0 }}>{TYPE_ICON[n.type] || '🔔'}</div>
+                <div style={{ flexShrink: 0, marginTop: 2, color: 'var(--ink-mute)' }}>
+                  <Icon name={TYPE_ICON[n.type] || 'bell'} size={16} />
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontWeight: n.is_read ? 500 : 700, fontSize: '0.85rem',
-                    marginBottom: '0.15rem', wordBreak: 'break-word',
-                  }}>{n.title}</div>
+                  <div style={{ fontWeight: n.is_read ? 500 : 700, fontSize: 13, marginBottom: 2, wordBreak: 'break-word' }}>
+                    {n.title}
+                  </div>
                   {n.body && (
                     <div style={{
-                      fontSize: '0.78rem', color: '#6b7280',
-                      lineHeight: 1.35, wordBreak: 'break-word',
+                      fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.35, wordBreak: 'break-word',
                       overflow: 'hidden', display: '-webkit-box',
                       WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                    }}>{n.body}</div>
+                    }}>
+                      {n.body}
+                    </div>
                   )}
-                  <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 3 }}>
                     {fmtRelative(n.created_at)}
                   </div>
                 </div>
                 {!n.is_read && (
                   <div style={{
-                    width: 8, height: 8, background: '#e94560', borderRadius: '50%',
-                    flexShrink: 0, marginTop: 6,
+                    width: 7, height: 7, background: 'var(--brand)', borderRadius: '50%',
+                    flexShrink: 0, marginTop: 5,
                   }} />
                 )}
               </div>
