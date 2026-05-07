@@ -41,7 +41,7 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
               <span style={{ width: 8, height: 8, borderRadius: 'var(--r-pill)', background: 'var(--brand)', flexShrink: 0 }} />
               <span className="mk-truncate" style={{ fontSize: 14, fontWeight: 600 }}>{order.pickup_location}</span>
             </div>
-            <div style={{ marginLeft: 3, width: 1, height: 14, background: 'var(--line-strong)', marginLeft: 3 }} />
+            <div style={{ marginLeft: 3, width: 1, height: 14, background: 'var(--line-strong)' }} />
             <div className="mk-row" style={{ gap: 8 }}>
               <span style={{ width: 8, height: 8, borderRadius: 'var(--r-pill)', border: '2px solid var(--brand)', flexShrink: 0 }} />
               <span className="mk-truncate" style={{ fontSize: 14, fontWeight: 600 }}>{order.dropoff_location}</span>

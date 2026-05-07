@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_complaints_order ON complaints(order_type, order_
 UPDATE moving_orders mo
 SET completed_at = COALESCE(
   (SELECT MAX(created_at) FROM moving_order_status_history h
-    WHERE h.order_id = mo.id AND h.status = 'COMPLETED'),
+    WHERE h.order_id = mo.id AND h.to_status = 'COMPLETED'),
   mo.updated_at
 )
 WHERE mo.status = 'COMPLETED' AND mo.completed_at IS NULL;
