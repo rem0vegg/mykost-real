@@ -3,13 +3,13 @@ const jwt = require('jsonwebtoken');
 const Joi = require('joi');
 const pool = require('../db/pool');
 
+// Universal registration — tidak ada pilihan role.
+// Setiap akun otomatis dapat capability 'customer'; mover/surveyor di-grant via apply.
 const registerSchema = Joi.object({
-  email: Joi.string().email().required(),
+  email:    Joi.string().email().required(),
   password: Joi.string().min(6).required(),
-  name: Joi.string().min(2).required(),
-  role: Joi.string().valid('user', 'agent', 'mover').required(),
-  phone: Joi.string().allow('', null),
-  kota: Joi.string().allow('', null),
+  name:     Joi.string().min(2).max(80).required(),
+  phone:    Joi.string().pattern(/^\d+$/).min(10).max(15).required(),
 });
 
 const loginSchema = Joi.object({
@@ -25,11 +25,19 @@ function signToken(user) {
   );
 }
 
+async function loadCapabilities(userId) {
+  const r = await pool.query(
+    `SELECT capability, status FROM user_capabilities WHERE user_id = $1`,
+    [userId]
+  );
+  return r.rows;
+}
+
 async function register(req, res) {
   const { error, value } = registerSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
-  const { email, password, name, role, phone, kota } = value;
+  const { email, password, name, phone } = value;
 
   const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
   if (existing.rows.length > 0) {
@@ -37,16 +45,36 @@ async function register(req, res) {
   }
 
   const password_hash = await bcrypt.hash(password, 10);
-  const result = await pool.query(
-    `INSERT INTO users (email, password_hash, role, name, phone, kota)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     RETURNING id, email, role, name, phone, kota, is_available, created_at`,
-    [email, password_hash, role, name, phone || null, kota || null]
-  );
 
-  const user = result.rows[0];
-  const token = signToken(user);
-  res.status(201).json({ user, token });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `INSERT INTO users (email, password_hash, role, name, phone)
+       VALUES ($1,$2,'user',$3,$4)
+       RETURNING id, email, role, name, phone, kota, is_available, created_at`,
+      [email, password_hash, name, phone]
+    );
+    const user = result.rows[0];
+
+    // Setiap akun baru otomatis dapat capability 'customer'
+    await client.query(
+      `INSERT INTO user_capabilities (user_id, capability, status)
+       VALUES ($1, 'customer', 'active')
+       ON CONFLICT DO NOTHING`,
+      [user.id]
+    );
+    await client.query('COMMIT');
+
+    const capabilities = await loadCapabilities(user.id);
+    const token = signToken(user);
+    res.status(201).json({ user, capabilities, token, needs_onboarding: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function login(req, res) {
@@ -65,7 +93,8 @@ async function login(req, res) {
 
   const token = signToken(user);
   const { password_hash, ...safeUser } = user;
-  res.json({ user: safeUser, token });
+  const capabilities = await loadCapabilities(user.id);
+  res.json({ user: safeUser, capabilities, token });
 }
 
 async function me(req, res) {
@@ -74,7 +103,8 @@ async function me(req, res) {
     [req.user.id]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: result.rows[0] });
+  const capabilities = await loadCapabilities(req.user.id);
+  res.json({ user: result.rows[0], capabilities });
 }
 
 module.exports = { register, login, me };

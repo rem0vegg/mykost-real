@@ -31,10 +31,31 @@ router.post('/:id/rebook',
   ctrl.rebookOrder
 );
 
+router.post('/:id/pay',
+  authenticate, requireRole('user'),
+  ctrl.payOrder
+);
+
+router.post('/:id/cancel',
+  authenticate, requireRole('user'),
+  ctrl.cancelOrder
+);
+
 // ── Mover routes ──────────────────────────────────────────────────────────────
 router.get('/available',
   authenticate, requireRole('mover'),
   ctrl.getAvailableOrders
+);
+
+router.get('/earnings',
+  authenticate, requireRole('mover'),
+  ctrl.getEarnings
+);
+
+router.post('/:id/evidence',
+  authenticate, requireRole('mover'),
+  upload.array('photos', 5),
+  ctrl.uploadEvidence
 );
 
 router.get('/my-jobs',

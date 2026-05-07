@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api, { getFileUrl } from '../services/api';
 import useAuthStore from '../store/authStore';
 import StatusBadge from '../components/StatusBadge';
 import StatusTimeline from '../components/StatusTimeline';
 import Chat from '../components/Chat';
+import ReviewForm from '../components/ReviewForm';
+import ComplaintForm from '../components/ComplaintForm';
 
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
@@ -14,6 +16,9 @@ export default function SurveyOrderDetailPage() {
   const { id } = useParams();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const chatRef = useRef(null);
+  const [finalizing, setFinalizing] = useState(false);
 
   const [order, setOrder] = useState(null);
   const [history, setHistory] = useState([]);
@@ -58,6 +63,14 @@ export default function SurveyOrderDetailPage() {
     setPreviews(urls);
     return () => urls.forEach(URL.revokeObjectURL);
   }, [surveyPhotos]);
+
+  // Auto-scroll ke chat jika ada hash #chat (dari klik notif).
+  // HARUS sebelum conditional return supaya hooks tidak berubah jumlahnya.
+  useEffect(() => {
+    if (location.hash === '#chat' && order && chatRef.current) {
+      setTimeout(() => chatRef.current.scrollIntoView({ behavior: 'smooth' }), 200);
+    }
+  }, [location.hash, order]);
 
   const handlePay = async () => {
     setPaying(true); setPayErr('');
@@ -110,6 +123,29 @@ export default function SurveyOrderDetailPage() {
     setSurveyPhotos(files);
   };
 
+  const finalizeOrder = async (action) => {
+    setFinalizing(true);
+    try {
+      await api.post(`/api/survey-orders/${id}/finalize`, { action });
+      if (action === 'proceed_moving') {
+        // Simpan kost info ke sessionStorage agar UserDashboard prefill form pindahan
+        sessionStorage.setItem('movingPrefill', JSON.stringify({
+          dropoff_location: order.address,
+          dropoff_latitude: order.latitude,
+          dropoff_longitude: order.longitude,
+          kost_name: order.kost_name,
+        }));
+        navigate('/dashboard?tab=moving');
+      } else {
+        await fetchOrder();
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal memproses');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
   const submitSurveyResult = async (e) => {
     e.preventDefault();
     if (!surveyNotes.trim()) return setSubmitErr('Catatan hasil survei wajib diisi');
@@ -136,8 +172,7 @@ export default function SurveyOrderDetailPage() {
   const isOwner = order.user_id === user.id;
   const isAssignedAgent = user.role === 'agent' && order.agent_id === user.id;
 
-  // Chat is only available once an agent has accepted (status assigned or completed)
-  // User sees agent; agent only sees client if THEY are the assigned agent
+  // Chat aktif setelah agent assigned, terus aktif sampai completed
   const chatPartnerId = (() => {
     if (['pending_payment', 'finding_agent', 'refunded', 'cancelled'].includes(order.status)) return null;
     if (user.role === 'user') return order.agent_id;
@@ -288,8 +323,8 @@ export default function SurveyOrderDetailPage() {
             </div>
           )}
 
-          {/* ── SURVEY RESULTS (completed) ─────────────────────────────── */}
-          {order.status === 'completed' && surveyResult && (
+          {/* ── SURVEY RESULTS (result_submitted atau completed) ───────── */}
+          {['result_submitted','completed'].includes(order.status) && surveyResult && (
             <div className="card" style={{ borderLeft: '4px solid #10b981' }}>
               <div className="card-title" style={{ marginBottom: '0.75rem' }}>✅ Hasil Survei</div>
               <div className="photo-grid" style={{ marginBottom: '1rem' }}>
@@ -313,6 +348,41 @@ export default function SurveyOrderDetailPage() {
             </div>
           )}
 
+          {/* ── FINALIZE: Pilihan setelah survey result ─────────────────── */}
+          {isOwner && order.status === 'result_submitted' && (
+            <div className="card" style={{ borderLeft: '4px solid #0f3460' }}>
+              <div className="card-title" style={{ marginBottom: '0.5rem' }}>Apa langkah Anda selanjutnya?</div>
+              <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '1rem' }}>
+                Anda sudah melihat hasil survei. Pilih salah satu untuk menyelesaikan order ini.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <button className="btn btn-success" disabled={finalizing}
+                  onClick={() => finalizeOrder('complete')}>
+                  ✅ Selesaikan Order
+                </button>
+                <button className="btn btn-primary" disabled={finalizing}
+                  onClick={() => finalizeOrder('proceed_moving')}>
+                  🚚 Lanjut Pesan Pindahan
+                </button>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+                "Lanjut Pesan Pindahan" akan langsung membuka form order pindahan dengan alamat kost sebagai tujuan.
+              </p>
+            </div>
+          )}
+
+          {/* ── REVIEW & COMPLAINT (setelah completed) ──────────────────── */}
+          {isOwner && order.status === 'completed' && order.agent_id && (
+            <>
+              <ReviewForm
+                orderId={order.id}
+                orderType="survey"
+                revieweeName={order.agent_name}
+              />
+              <ComplaintForm orderId={order.id} orderType="survey" />
+            </>
+          )}
+
           {/* Timeline */}
           <div className="card">
             <div className="card-title" style={{ marginBottom: '1rem' }}>Riwayat Status</div>
@@ -321,7 +391,7 @@ export default function SurveyOrderDetailPage() {
         </div>
 
         {/* ── RIGHT COLUMN: CHAT ─────────────────────────────────────────── */}
-        <div className="card">
+        <div className="card" ref={chatRef} id="chat">
           <div className="card-title" style={{ marginBottom: '1rem' }}>Chat</div>
           {chatPartnerId ? (
             <Chat orderId={id} toUserId={chatPartnerId} orderType="survey" />

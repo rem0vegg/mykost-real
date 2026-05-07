@@ -18,6 +18,9 @@ app.use('/api/survey-orders', require('./routes/surveyOrders'));
 app.use('/api/moving-orders', require('./routes/movingOrders'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/reviews',      require('./routes/reviews'));
+app.use('/api/complaints',   require('./routes/complaints'));
+app.use('/api/me/capabilities', require('./routes/capabilities'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

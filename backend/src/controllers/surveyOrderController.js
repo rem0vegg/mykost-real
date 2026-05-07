@@ -73,7 +73,7 @@ async function payOrder(req, res) {
   );
   for (const a of agents.rows) {
     await notify(a.id, 'new_order', 'Order survei baru!',
-      `Order untuk "${order.kost_name}" di ${order.kota} tersedia.`, id);
+      `Order untuk "${order.kost_name}" di ${order.kota} tersedia.`, id, 'survey');
   }
   res.json({ order: updated.rows[0] });
 }
@@ -95,7 +95,7 @@ async function requestRefund(req, res) {
   );
   await addHistory(id, 'refunded', 'Order dibatalkan oleh user. Pembayaran akan dikembalikan.', req.user.id);
   await notify(req.user.id, 'refunded', 'Refund diproses',
-    `Order "${order.kost_name}" dibatalkan. Dana akan dikembalikan.`, id);
+    `Order "${order.kost_name}" dibatalkan. Dana akan dikembalikan.`, id, 'survey');
   res.json({ order: updated.rows[0] });
 }
 
@@ -153,7 +153,7 @@ async function acceptOrder(req, res) {
   }
   await addHistory(id, 'assigned', `Order diterima oleh agent ${req.user.name}`, req.user.id);
   await notify(updated.rows[0].user_id, 'order_assigned', 'Agent ditemukan!',
-    `Agent ${req.user.name} telah menerima order survei "${updated.rows[0].kost_name}".`, id);
+    `Agent ${req.user.name} telah menerima order survei "${updated.rows[0].kost_name}".`, id, 'survey');
   res.json({ order: updated.rows[0] });
 }
 
@@ -185,13 +185,58 @@ async function submitSurveyResult(req, res) {
   }
 
   await pool.query(
-    `UPDATE survey_orders SET status='completed', updated_at=CURRENT_TIMESTAMP WHERE id=$1`,
+    `UPDATE survey_orders SET status='result_submitted', updated_at=CURRENT_TIMESTAMP WHERE id=$1`,
     [id]
   );
-  await addHistory(id, 'completed', 'Hasil survei dikirim oleh agent.', req.user.id);
-  await notify(order.user_id, 'survey_complete', 'Hasil survei tersedia!',
-    `Hasil survei kost "${order.kost_name}" telah dikirim oleh agent.`, id);
+  await addHistory(id, 'result_submitted', 'Hasil survei dikirim oleh agent.', req.user.id);
+  await notify(order.user_id, 'survey_result_ready', 'Hasil survei tersedia!',
+    `Hasil survei kost "${order.kost_name}" telah dikirim. Silakan cek hasilnya dan pilih langkah selanjutnya.`, id, 'survey');
   res.json({ success: true });
+}
+
+/**
+ * POST /survey-orders/:id/finalize
+ * User memutuskan: complete (tutup order) atau proceed_moving (lanjut ke pindahan)
+ * Kedua-duanya menutup status survey ke 'completed'.
+ */
+async function finalizeOrder(req, res) {
+  const { id } = req.params;
+  const { action } = req.body;
+
+  if (!['complete','proceed_moving'].includes(action)) {
+    return res.status(400).json({ error: 'Action harus complete atau proceed_moving' });
+  }
+
+  const found = await pool.query('SELECT * FROM survey_orders WHERE id = $1', [id]);
+  if (!found.rows.length) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+  const order = found.rows[0];
+  if (order.user_id !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+  if (order.status !== 'result_submitted') {
+    return res.status(400).json({ error: 'Order tidak dalam status menunggu keputusan' });
+  }
+
+  const updated = await pool.query(
+    `UPDATE survey_orders SET status='completed', updated_at=CURRENT_TIMESTAMP WHERE id=$1 RETURNING *`,
+    [id]
+  );
+  const note = action === 'proceed_moving'
+    ? 'User puas dengan hasil survei, lanjut ke order pindahan.'
+    : 'User menutup order.';
+  await addHistory(id, 'completed', note, req.user.id);
+
+  // Beri tahu agent bahwa order sudah ditutup user
+  if (order.agent_id) {
+    const title = action === 'proceed_moving'
+      ? 'User lanjut ke pindahan'
+      : 'Order survei ditutup';
+    const body = action === 'proceed_moving'
+      ? `User puas dengan hasil survei "${order.kost_name}" dan akan memesan layanan pindahan.`
+      : `User menutup order survei "${order.kost_name}".`;
+    await notify(order.agent_id, 'survey_finalized', title, body, id, 'survey');
+  }
+
+  res.json({ order: updated.rows[0], action });
 }
 
 // ─── shared ──────────────────────────────────────────────────────────────────
@@ -267,5 +312,6 @@ async function getAgentCommissions(req, res) {
 module.exports = {
   createOrder, getUserOrders, payOrder, requestRefund,
   getAvailableOrders, getAgentOrders, acceptOrder, submitSurveyResult,
+  finalizeOrder,
   getOrderById, getAgentCommissions,
 };

@@ -7,7 +7,8 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
+  const lastMessageIdRef = useRef(null);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -19,12 +20,17 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
+  // Scroll HANYA container chat (bukan page) saat ada pesan baru
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!messagesRef.current || messages.length === 0) return;
+    const lastId = messages[messages.length - 1].id;
+    if (lastId === lastMessageIdRef.current) return; // tidak ada pesan baru
+    lastMessageIdRef.current = lastId;
+    messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
   }, [messages]);
 
   const send = async (e) => {
@@ -48,7 +54,7 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
 
   return (
     <div className="chat-box">
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesRef}>
         {messages.length === 0 && (
           <p style={{ color: '#9ca3af', textAlign: 'center', marginTop: '2rem', fontSize: '0.88rem' }}>
             Belum ada pesan. Mulai percakapan!
@@ -64,7 +70,6 @@ export default function Chat({ orderId, toUserId, orderType = 'survey' }) {
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
       <form className="chat-input-row" onSubmit={send}>
         <input

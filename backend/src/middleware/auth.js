@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const pool = require('../db/pool');
 
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -16,12 +17,39 @@ function authenticate(req, res, next) {
   }
 }
 
+// Map legacy role → capability
+const LEGACY_ROLE_TO_CAP = {
+  user:  'customer',
+  agent: 'surveyor',
+  mover: 'mover',
+};
+
+/**
+ * requireRole('user'|'agent'|'mover', ...)
+ * Backward-compatible: dipenuhi kalau JWT-role match (legacy) ATAU user
+ * memiliki capability setara di tabel user_capabilities (status = 'active').
+ */
 function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Access forbidden for your role' });
+  return async (req, res, next) => {
+    // Fast path: legacy role check
+    if (roles.includes(req.user.role)) return next();
+
+    // Capability check (universal account)
+    const wanted = roles.map(r => LEGACY_ROLE_TO_CAP[r]).filter(Boolean);
+    if (wanted.length === 0) {
+      return res.status(403).json({ error: 'Akses ditolak' });
     }
-    next();
+    try {
+      const r = await pool.query(
+        `SELECT 1 FROM user_capabilities
+         WHERE user_id = $1 AND capability = ANY($2) AND status = 'active' LIMIT 1`,
+        [req.user.id, wanted]
+      );
+      if (r.rows.length > 0) return next();
+    } catch (e) {
+      console.error('capability check failed:', e.message);
+    }
+    return res.status(403).json({ error: 'Akses ditolak — capability dibutuhkan' });
   };
 }
 

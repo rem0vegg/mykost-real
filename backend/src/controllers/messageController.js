@@ -101,9 +101,14 @@ async function sendMessage(req, res) {
     [msg.id]
   );
 
-  await notify(to_user_id, 'new_message', `Pesan dari ${req.user.name}`,
+  await notify(
+    to_user_id,
+    'new_message',
+    `Pesan dari ${req.user.name}`,
     message_text.length > 80 ? message_text.slice(0, 80) + '…' : message_text,
-    moving_order_id ? null : orderId);
+    moving_order_id || orderId,
+    moving_order_id ? 'moving' : 'survey'
+  );
 
   res.status(201).json({ message: withUser.rows[0] });
 }
