@@ -51,12 +51,18 @@ function calculatePrice({
 }
 
 /**
- * Admin review dihapus — semua order langsung INSTANT_CONFIRMED.
+ * @deprecated Admin review dihapus pada Mei 2026 — fungsi ini selalu return false.
+ * Dipertahankan agar kolom `requires_review` & status `REVIEW_REQUIRED` tetap kompatibel
+ * dengan order legacy. JANGAN dipanggil dari kode baru.
  */
 function determineRequiresReview() {
   return false;
 }
 
+/**
+ * @deprecated Tidak pernah dipanggil sejak admin review dihapus.
+ * Dipertahankan untuk dokumentasi rumus harga lama.
+ */
 function getPriceRange(estimated_price) {
   return {
     price_min: estimated_price,

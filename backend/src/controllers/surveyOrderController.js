@@ -225,6 +225,17 @@ async function finalizeOrder(req, res) {
     : 'User menutup order.';
   await addHistory(id, 'completed', note, req.user.id);
 
+  // Beri tahu agent bahwa order sudah ditutup user
+  if (order.agent_id) {
+    const title = action === 'proceed_moving'
+      ? 'User lanjut ke pindahan'
+      : 'Order survei ditutup';
+    const body = action === 'proceed_moving'
+      ? `User puas dengan hasil survei "${order.kost_name}" dan akan memesan layanan pindahan.`
+      : `User menutup order survei "${order.kost_name}".`;
+    await notify(order.agent_id, 'survey_finalized', title, body, id, 'survey');
+  }
+
   res.json({ order: updated.rows[0], action });
 }
 

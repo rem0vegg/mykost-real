@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'agent', 'mover')),
+  -- Legacy. Setiap user baru default 'user'. Capability sebenarnya disimpan di user_capabilities.
+  role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'agent', 'mover')),
   name VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
   kota VARCHAR(255),
@@ -13,6 +14,40 @@ CREATE TABLE IF NOT EXISTS users (
   is_available BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Universal account: setiap user dapat memiliki banyak capability
+CREATE TABLE IF NOT EXISTS user_capabilities (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  capability   VARCHAR(20) NOT NULL
+                 CHECK (capability IN ('customer','mover','surveyor')),
+  status       VARCHAR(20) NOT NULL DEFAULT 'active'
+                 CHECK (status IN ('active','suspended','pending_review')),
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, capability)
+);
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_user ON user_capabilities(user_id);
+
+CREATE TABLE IF NOT EXISTS mover_profiles (
+  user_id          UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  vehicle_types    TEXT[] DEFAULT '{}',
+  service_area     TEXT,
+  bio              TEXT,
+  is_available     BOOLEAN DEFAULT TRUE,
+  total_jobs       INT DEFAULT 0,
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS surveyor_profiles (
+  user_id          UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  kota             VARCHAR(100),
+  bio              TEXT,
+  is_available     BOOLEAN DEFAULT TRUE,
+  total_surveys    INT DEFAULT 0,
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Survey order status flow:
@@ -151,9 +186,12 @@ CREATE TABLE IF NOT EXISTS moving_orders (
   rebooked_from         UUID REFERENCES moving_orders(id) ON DELETE SET NULL,
 
   scheduled_date        TIMESTAMPTZ,
+  completed_at          TIMESTAMPTZ,
   created_at            TIMESTAMPTZ DEFAULT NOW(),
   updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_moving_orders_completed_at ON moving_orders(completed_at);
 
 CREATE TABLE IF NOT EXISTS driver_reports (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -54,7 +54,7 @@ const createSchema = Joi.object({
   narrow_alley:         Joi.boolean().default(false),
   has_fragile:          Joi.boolean().default(false),
   needs_disassembly:    Joi.boolean().default(false),
-  estimated_item_count: Joi.number().integer().min(0).allow(null),
+  estimated_item_count: Joi.number().integer().min(0).allow(null).default(null),
 
   // Add-ons
   is_round_trip:      Joi.boolean().default(false),
@@ -277,6 +277,14 @@ async function uploadEvidence(req, res) {
   const newUrls = req.files.map(f => `/uploads/${f.filename}`);
   const column  = stage === 'pickup' ? 'pickup_photo_urls' : 'delivery_photo_urls';
   const existing = order[column] || [];
+
+  // Cap total foto per stage maksimal 10 untuk mencegah abuse / storage bloat
+  const MAX_PER_STAGE = 10;
+  if (existing.length + newUrls.length > MAX_PER_STAGE) {
+    return res.status(400).json({
+      error: `Maksimal ${MAX_PER_STAGE} foto per stage. Saat ini sudah ada ${existing.length}, mencoba tambah ${newUrls.length}.`,
+    });
+  }
   const merged = [...existing, ...newUrls];
 
   const updated = await pool.query(
@@ -301,13 +309,16 @@ async function uploadEvidence(req, res) {
  * Statistik penghasilan mover: total, bulan ini, breakdown per bulan.
  */
 async function getEarnings(req, res) {
+  // Earnings bucketed by COALESCE(completed_at, updated_at) — bukan created_at
+  // supaya jobs yang dibuat bulan lalu & selesai bulan ini masuk ke bulan ini.
   const summary = await pool.query(
     `SELECT
        COUNT(*) FILTER (WHERE status = 'COMPLETED')                       AS completed_count,
        COUNT(*) FILTER (WHERE status IN ('ACCEPTED','ON_GOING'))          AS in_progress_count,
        COALESCE(SUM(estimated_price) FILTER (WHERE status = 'COMPLETED'), 0)::int AS total_earned,
        COALESCE(SUM(estimated_price) FILTER (
-         WHERE status = 'COMPLETED' AND created_at >= date_trunc('month', NOW())
+         WHERE status = 'COMPLETED'
+           AND COALESCE(completed_at, updated_at) >= date_trunc('month', NOW())
        ), 0)::int AS this_month,
        COALESCE(SUM(estimated_price) FILTER (
          WHERE status IN ('ACCEPTED','ON_GOING')
@@ -318,24 +329,26 @@ async function getEarnings(req, res) {
 
   const byMonth = await pool.query(
     `SELECT
-       TO_CHAR(date_trunc('month', created_at), 'YYYY-MM') AS month,
-       COUNT(*)::int                                       AS count,
-       COALESCE(SUM(estimated_price), 0)::int              AS total
+       TO_CHAR(date_trunc('month', COALESCE(completed_at, updated_at)), 'YYYY-MM') AS month,
+       COUNT(*)::int                                                                AS count,
+       COALESCE(SUM(estimated_price), 0)::int                                       AS total
      FROM moving_orders
      WHERE mover_id = $1 AND status = 'COMPLETED'
-     GROUP BY date_trunc('month', created_at)
-     ORDER BY date_trunc('month', created_at) DESC
+     GROUP BY date_trunc('month', COALESCE(completed_at, updated_at))
+     ORDER BY date_trunc('month', COALESCE(completed_at, updated_at)) DESC
      LIMIT 12`,
     [req.user.id]
   );
 
   const recent = await pool.query(
     `SELECT mo.id, mo.pickup_location, mo.dropoff_location, mo.distance_km,
-            mo.estimated_price, mo.status, mo.created_at, u.name AS user_name
+            mo.estimated_price, mo.status,
+            COALESCE(mo.completed_at, mo.updated_at) AS completed_at,
+            u.name AS user_name
      FROM moving_orders mo
      JOIN users u ON u.id = mo.user_id
      WHERE mo.mover_id = $1 AND mo.status = 'COMPLETED'
-     ORDER BY mo.created_at DESC LIMIT 10`,
+     ORDER BY COALESCE(mo.completed_at, mo.updated_at) DESC LIMIT 10`,
     [req.user.id]
   );
 
@@ -620,6 +633,7 @@ async function updateOrderStatus(req, res) {
     `UPDATE moving_orders
      SET status = $1,
          final_price = COALESCE($2, final_price),
+         completed_at = CASE WHEN $1 = 'COMPLETED' THEN NOW() ELSE completed_at END,
          updated_at = NOW()
      WHERE id = $3
      RETURNING *`,

@@ -27,10 +27,13 @@ export default function LocationSearchInput({ value, onTextChange, onSelect, pla
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
+        // Nominatim TOS: max ~1 req/s — kita patuhi via debounce 600ms + filter countrycodes.
+        // UA tidak bisa di-set dari browser; gunakan Referer otomatis dari browser sebagai attribution.
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&countrycodes=id&limit=5`,
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&countrycodes=id&limit=5&addressdetails=0`,
           { headers: { 'Accept-Language': 'id' } }
         );
+        if (!res.ok) throw new Error('nominatim error');
         const data = await res.json();
         setSuggestions(data);
         setOpen(data.length > 0);
@@ -39,7 +42,7 @@ export default function LocationSearchInput({ value, onTextChange, onSelect, pla
       } finally {
         setLoading(false);
       }
-    }, 400);
+    }, 600);
   };
 
   const handleSelect = (item) => {

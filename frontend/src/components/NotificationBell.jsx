@@ -31,9 +31,16 @@ export default function NotificationBell() {
   const containerRef              = useRef(null);
   const navigate                  = useNavigate();
 
+  // Track terakhir yang kita lihat supaya skip setState kalau tidak ada perubahan
+  // → mencegah re-render bell tiap 15 detik kalau tidak ada notif baru.
+  const lastSigRef = useRef('');
+
   const fetchNotifs = async () => {
     try {
       const { data } = await api.get('/api/notifications');
+      const sig = `${data.unreadCount}|${(data.notifications || []).map(n => n.id + (n.is_read ? '1' : '0')).join(',')}`;
+      if (sig === lastSigRef.current) return;
+      lastSigRef.current = sig;
       setItems(data.notifications);
       setUnread(data.unreadCount);
     } catch {}
@@ -41,8 +48,15 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchNotifs();
-    const t = setInterval(fetchNotifs, 15000); // refresh tiap 15 detik
-    return () => clearInterval(t);
+    // Skip polling saat tab tidak visible — hemat bandwidth & DB load
+    const tick = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
+    const t = setInterval(tick, 15000);
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   // Close dropdown saat klik di luar

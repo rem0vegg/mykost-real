@@ -17,8 +17,8 @@ export default function Navbar() {
       <div className="navbar-links">
         {user && (
           <>
-            <span className={`role-badge role-${user.role}`}>{user.role}</span>
             <Link to="/dashboard">Dashboard</Link>
+            <Link to="/onboarding">Tambah Layanan</Link>
             <NotificationBell />
             <Link to="/profile">{user.name}</Link>
             <button onClick={handleLogout}>Logout</button>

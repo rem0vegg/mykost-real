@@ -43,6 +43,10 @@ export default function ExpandableText({ text, limit = 80, style }) {
 export function maskPhone(phone) {
   if (!phone) return null;
   const s = String(phone).replace(/\s/g, '');
-  if (s.length < 8) return s;
+  // Untuk nomor pendek (< 8 digit) tetap mask agar tidak bocor — tampilkan 2 awal saja
+  if (s.length < 8) {
+    if (s.length <= 2) return '****';
+    return s.slice(0, 2) + '*'.repeat(Math.max(s.length - 2, 4));
+  }
   return s.slice(0, 4) + '****' + s.slice(-4);
 }
