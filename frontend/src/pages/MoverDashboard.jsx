@@ -3,22 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 
+const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+const fmtMonth = (ym) => {
+  const [y, m] = ym.split('-');
+  const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+  return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+};
+
 export default function MoverDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('available');
   const [available, setAvailable] = useState([]);
   const [myJobs, setMyJobs] = useState([]);
+  const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [a, m] = await Promise.all([
+      const [a, m, e] = await Promise.all([
         api.get('/api/moving-orders/available'),
         api.get('/api/moving-orders/my-jobs'),
+        api.get('/api/moving-orders/earnings'),
       ]);
       setAvailable(a.data.orders);
       setMyJobs(m.data.orders);
+      setEarnings(e.data);
     } catch {}
     setLoading(false);
   };
@@ -37,22 +47,28 @@ export default function MoverDashboard() {
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('id-ID') : '—';
 
-  const stats = {
-    available: available.length,
-    active: myJobs.filter((o) => ['ACCEPTED','ON_GOING'].includes(o.status)).length,
-    completed: myJobs.filter((o) => o.status === 'COMPLETED').length,
-  };
-
   if (loading) return <div className="spinner" />;
+
+  const summary = earnings?.summary || {};
 
   return (
     <div className="page">
       <div className="page-title">Mover Dashboard</div>
 
+      {/* Earnings overview */}
       <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card"><div className="stat-number">{stats.available}</div><div className="stat-label">Available Jobs</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.active}</div><div className="stat-label">Active Jobs</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.completed}</div><div className="stat-label">Completed</div></div>
+        <div className="stat-card" style={{ borderTop: '3px solid #10b981' }}>
+          <div className="stat-number" style={{ color: '#059669', fontSize: '1.4rem' }}>{rp(summary.total_earned)}</div>
+          <div className="stat-label">Total Penghasilan</div>
+        </div>
+        <div className="stat-card" style={{ borderTop: '3px solid #0f3460' }}>
+          <div className="stat-number" style={{ color: '#0f3460', fontSize: '1.4rem' }}>{rp(summary.this_month)}</div>
+          <div className="stat-label">Bulan Ini</div>
+        </div>
+        <div className="stat-card" style={{ borderTop: '3px solid #f59e0b' }}>
+          <div className="stat-number" style={{ color: '#d97706', fontSize: '1.4rem' }}>{rp(summary.pending_amount)}</div>
+          <div className="stat-label">Sedang Berjalan</div>
+        </div>
       </div>
 
       <div className="tabs">
@@ -61,6 +77,9 @@ export default function MoverDashboard() {
         </button>
         <button className={`tab-btn ${tab === 'my-jobs' ? 'active' : ''}`} onClick={() => setTab('my-jobs')}>
           My Jobs ({myJobs.length})
+        </button>
+        <button className={`tab-btn ${tab === 'earnings' ? 'active' : ''}`} onClick={() => setTab('earnings')}>
+          💰 Penghasilan
         </button>
       </div>
 
@@ -139,6 +158,90 @@ export default function MoverDashboard() {
               </div>
             ))
           )}
+        </>
+      )}
+
+      {tab === 'earnings' && (
+        <>
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-title" style={{ marginBottom: '1rem' }}>💰 Ringkasan Penghasilan</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+              <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '0.85rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: 600 }}>Total Diterima</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', marginTop: '0.25rem' }}>{rp(summary.total_earned)}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>{summary.completed_count || 0} job selesai</div>
+              </div>
+              <div style={{ background: '#f0f4ff', borderRadius: 8, padding: '0.85rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#1e40af', fontWeight: 600 }}>Bulan Ini</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f3460', marginTop: '0.25rem' }}>{rp(summary.this_month)}</div>
+              </div>
+              <div style={{ background: '#fef3c7', borderRadius: 8, padding: '0.85rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600 }}>Sedang Berjalan</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d97706', marginTop: '0.25rem' }}>{rp(summary.pending_amount)}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>{summary.in_progress_count || 0} job aktif</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-title" style={{ marginBottom: '1rem' }}>📅 Penghasilan per Bulan</div>
+            {(earnings?.by_month || []).length === 0 ? (
+              <div className="empty-state" style={{ padding: '1rem' }}>
+                <p style={{ fontSize: '0.88rem', color: '#9ca3af' }}>Belum ada penghasilan tercatat.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {earnings.by_month.map((m) => (
+                  <div key={m.month} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.6rem 0.85rem', background: '#f9fafb', borderRadius: 6,
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{fmtMonth(m.month)}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{m.count} job</div>
+                    </div>
+                    <div style={{ fontWeight: 800, color: '#059669' }}>{rp(m.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="card-title" style={{ marginBottom: '1rem' }}>🕒 Pembayaran Terakhir</div>
+            {(earnings?.recent_completed || []).length === 0 ? (
+              <div className="empty-state" style={{ padding: '1rem' }}>
+                <p style={{ fontSize: '0.88rem', color: '#9ca3af' }}>Belum ada job yang selesai.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {earnings.recent_completed.map((j) => (
+                  <div key={j.id} onClick={() => navigate(`/moving-orders/${j.id}`)}
+                    style={{
+                      padding: '0.6rem 0.85rem', borderRadius: 6, cursor: 'pointer',
+                      border: '1px solid #e5e7eb',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-word' }}>
+                          {j.pickup_location?.split(',')[0]} → {j.dropoff_location?.split(',')[0]}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem' }}>
+                          {j.user_name} · {j.distance_km} km · {fmt(j.created_at)}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>
+                        +{rp(j.estimated_price)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

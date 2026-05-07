@@ -5,6 +5,7 @@ import StatusBadge from '../components/StatusBadge';
 import MapPicker from '../components/MapPicker';
 import KotaSelect from '../components/KotaSelect';
 import LocationSearchInput from '../components/LocationSearchInput';
+import LocationMapModal from '../components/LocationMapModal';
 import { matchKotaFromNominatim } from '../data/kotaList';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -46,6 +47,8 @@ export default function UserDashboard() {
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [movingPhotos, setMovingPhotos] = useState([]);
   const [movingPhotoErr, setMovingPhotoErr] = useState('');
+  const [showPickupMap, setShowPickupMap]   = useState(false);
+  const [showDropoffMap, setShowDropoffMap] = useState(false);
   const [movingEstimate, setMovingEstimate] = useState(null);
   const [movingWarning, setMovingWarning] = useState(null);
   const [movingEstimating, setMovingEstimating] = useState(false);
@@ -475,35 +478,80 @@ export default function UserDashboard() {
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Lokasi Jemput *</label>
-                  <LocationSearchInput
-                    value={movingForm.pickup_location}
-                    onTextChange={(text) => setMovingForm((f) => ({ ...f, pickup_location: text }))}
-                    onSelect={({ address, lat, lng }) => {
-                      const coords = { lat, lng };
-                      const updated = { ...movingForm, pickup_location: address };
-                      setPickupCoords(coords);
-                      setMovingForm(updated);
-                      if (dropoffCoords) fetchDistanceAndEstimate(coords, dropoffCoords, updated);
-                    }}
-                    placeholder="Cari alamat jemput..."
-                  />
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <LocationSearchInput
+                        value={movingForm.pickup_location}
+                        onTextChange={(text) => setMovingForm((f) => ({ ...f, pickup_location: text }))}
+                        onSelect={({ address, lat, lng }) => {
+                          const coords = { lat, lng };
+                          const updated = { ...movingForm, pickup_location: address };
+                          setPickupCoords(coords);
+                          setMovingForm(updated);
+                          if (dropoffCoords) fetchDistanceAndEstimate(coords, dropoffCoords, updated);
+                        }}
+                        placeholder="Cari alamat jemput..."
+                      />
+                    </div>
+                    <button type="button" onClick={() => setShowPickupMap(true)} title="Pilih di peta"
+                      style={{
+                        padding: '0 0.85rem', background: '#0f3460', color: '#fff', border: 'none',
+                        borderRadius: 6, cursor: 'pointer', fontSize: '1.1rem',
+                      }}>📍</button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Lokasi Tujuan *</label>
-                  <LocationSearchInput
-                    value={movingForm.dropoff_location}
-                    onTextChange={(text) => setMovingForm((f) => ({ ...f, dropoff_location: text }))}
-                    onSelect={({ address, lat, lng }) => {
-                      const coords = { lat, lng };
-                      const updated = { ...movingForm, dropoff_location: address };
-                      setDropoffCoords(coords);
-                      setMovingForm(updated);
-                      if (pickupCoords) fetchDistanceAndEstimate(pickupCoords, coords, updated);
-                    }}
-                    placeholder="Cari alamat tujuan..."
-                  />
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <LocationSearchInput
+                        value={movingForm.dropoff_location}
+                        onTextChange={(text) => setMovingForm((f) => ({ ...f, dropoff_location: text }))}
+                        onSelect={({ address, lat, lng }) => {
+                          const coords = { lat, lng };
+                          const updated = { ...movingForm, dropoff_location: address };
+                          setDropoffCoords(coords);
+                          setMovingForm(updated);
+                          if (pickupCoords) fetchDistanceAndEstimate(pickupCoords, coords, updated);
+                        }}
+                        placeholder="Cari alamat tujuan..."
+                      />
+                    </div>
+                    <button type="button" onClick={() => setShowDropoffMap(true)} title="Pilih di peta"
+                      style={{
+                        padding: '0 0.85rem', background: '#0f3460', color: '#fff', border: 'none',
+                        borderRadius: 6, cursor: 'pointer', fontSize: '1.1rem',
+                      }}>📍</button>
+                  </div>
                 </div>
               </div>
+
+              {showPickupMap && (
+                <LocationMapModal
+                  title="Pilih Lokasi Jemput"
+                  onClose={() => setShowPickupMap(false)}
+                  onSelect={({ address, lat, lng }) => {
+                    const coords = { lat, lng };
+                    const updated = { ...movingForm, pickup_location: address };
+                    setPickupCoords(coords);
+                    setMovingForm(updated);
+                    if (dropoffCoords) fetchDistanceAndEstimate(coords, dropoffCoords, updated);
+                  }}
+                />
+              )}
+              {showDropoffMap && (
+                <LocationMapModal
+                  title="Pilih Lokasi Tujuan"
+                  onClose={() => setShowDropoffMap(false)}
+                  onSelect={({ address, lat, lng }) => {
+                    const coords = { lat, lng };
+                    const updated = { ...movingForm, dropoff_location: address };
+                    setDropoffCoords(coords);
+                    setMovingForm(updated);
+                    if (pickupCoords) fetchDistanceAndEstimate(pickupCoords, coords, updated);
+                  }}
+                />
+              )}
               <div className="form-group">
                 <label className="form-label">Estimasi Jarak (km) *</label>
                 <input className="form-control" type="number" min="0.1" step="0.1"

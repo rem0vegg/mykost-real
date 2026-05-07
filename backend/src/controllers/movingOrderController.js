@@ -251,6 +251,104 @@ async function uploadPhotos(req, res) {
 }
 
 /**
+ * POST /moving-orders/:id/evidence?stage=pickup|delivery  (mover)
+ * Mover upload foto bukti kondisi barang saat pickup atau delivery.
+ */
+async function uploadEvidence(req, res) {
+  const { id } = req.params;
+  const stage = req.query.stage;
+
+  if (!['pickup','delivery'].includes(stage)) {
+    return res.status(400).json({ error: 'stage harus pickup atau delivery' });
+  }
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'Tidak ada file yang diupload' });
+  }
+
+  const found = await pool.query('SELECT * FROM moving_orders WHERE id = $1', [id]);
+  if (found.rows.length === 0) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+  const order = found.rows[0];
+  if (order.mover_id !== req.user.id) {
+    return res.status(403).json({ error: 'Hanya mover yang ditugaskan yang bisa upload bukti' });
+  }
+  if (!['ACCEPTED','ON_GOING','COMPLETED'].includes(order.status)) {
+    return res.status(400).json({ error: 'Order belum bisa upload bukti' });
+  }
+
+  const newUrls = req.files.map(f => `/uploads/${f.filename}`);
+  const column  = stage === 'pickup' ? 'pickup_photo_urls' : 'delivery_photo_urls';
+  const existing = order[column] || [];
+  const merged = [...existing, ...newUrls];
+
+  const updated = await pool.query(
+    `UPDATE moving_orders SET ${column} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+    [merged, id]
+  );
+
+  await notify(
+    order.user_id,
+    `moving_evidence_${stage}`,
+    stage === 'pickup' ? 'Foto bukti pickup ditambahkan' : 'Foto bukti delivery ditambahkan',
+    `Mover mengunggah ${newUrls.length} foto bukti ${stage === 'pickup' ? 'kondisi pickup' : 'kondisi delivery'}.`,
+    order.id,
+    'moving'
+  );
+
+  res.json({ order: updated.rows[0] });
+}
+
+/**
+ * GET /moving-orders/earnings  (mover)
+ * Statistik penghasilan mover: total, bulan ini, breakdown per bulan.
+ */
+async function getEarnings(req, res) {
+  const summary = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'COMPLETED')                       AS completed_count,
+       COUNT(*) FILTER (WHERE status IN ('ACCEPTED','ON_GOING'))          AS in_progress_count,
+       COALESCE(SUM(estimated_price) FILTER (WHERE status = 'COMPLETED'), 0)::int AS total_earned,
+       COALESCE(SUM(estimated_price) FILTER (
+         WHERE status = 'COMPLETED' AND created_at >= date_trunc('month', NOW())
+       ), 0)::int AS this_month,
+       COALESCE(SUM(estimated_price) FILTER (
+         WHERE status IN ('ACCEPTED','ON_GOING')
+       ), 0)::int AS pending_amount
+     FROM moving_orders WHERE mover_id = $1`,
+    [req.user.id]
+  );
+
+  const byMonth = await pool.query(
+    `SELECT
+       TO_CHAR(date_trunc('month', created_at), 'YYYY-MM') AS month,
+       COUNT(*)::int                                       AS count,
+       COALESCE(SUM(estimated_price), 0)::int              AS total
+     FROM moving_orders
+     WHERE mover_id = $1 AND status = 'COMPLETED'
+     GROUP BY date_trunc('month', created_at)
+     ORDER BY date_trunc('month', created_at) DESC
+     LIMIT 12`,
+    [req.user.id]
+  );
+
+  const recent = await pool.query(
+    `SELECT mo.id, mo.pickup_location, mo.dropoff_location, mo.distance_km,
+            mo.estimated_price, mo.status, mo.created_at, u.name AS user_name
+     FROM moving_orders mo
+     JOIN users u ON u.id = mo.user_id
+     WHERE mo.mover_id = $1 AND mo.status = 'COMPLETED'
+     ORDER BY mo.created_at DESC LIMIT 10`,
+    [req.user.id]
+  );
+
+  res.json({
+    summary: summary.rows[0],
+    by_month: byMonth.rows,
+    recent_completed: recent.rows,
+  });
+}
+
+/**
  * GET /moving-orders
  * Daftar order milik user yang login.
  */
@@ -760,4 +858,6 @@ module.exports = {
   reviewOrder,
   payOrder,
   cancelOrder,
+  uploadEvidence,
+  getEarnings,
 };

@@ -63,6 +63,9 @@ export default function MovingOrderDetailPage() {
   const [reportErr,      setReportErr]      = useState('');
   const [reportResult,   setReportResult]   = useState(null);
 
+  // Mover: upload bukti
+  const [evidenceUploading, setEvidenceUploading] = useState({ pickup: false, delivery: false });
+
   // User: rebook
   const [showRebookForm, setShowRebookForm]   = useState(false);
   const [rebookVehicle,  setRebookVehicle]    = useState('VAN');
@@ -172,6 +175,24 @@ export default function MovingOrderDetailPage() {
       await api.post(`/api/moving-orders/${id}/accept`);
       await fetchOrder();
     } catch (err) { alert(err.response?.data?.error || 'Gagal accept job'); }
+  };
+
+  const uploadEvidence = async (e, stage) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (files.length > 5) { alert('Maksimal 5 foto'); e.target.value = ''; return; }
+    setEvidenceUploading((p) => ({ ...p, [stage]: true }));
+    try {
+      const fd = new FormData();
+      files.forEach((f) => fd.append('photos', f));
+      await api.post(`/api/moving-orders/${id}/evidence?stage=${stage}`, fd);
+      await fetchOrder();
+      e.target.value = '';
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal upload bukti');
+    } finally {
+      setEvidenceUploading((p) => ({ ...p, [stage]: false }));
+    }
   };
 
   return (
@@ -302,14 +323,69 @@ export default function MovingOrderDetailPage() {
             {/* Foto barang */}
             {order.photo_urls?.length > 0 && (
               <div style={{ marginTop: '1rem' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>Foto Barang</div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>📸 Foto Barang (dari user)</div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {order.photo_urls.map((url, i) => (
-                    <img key={i} src={`http://localhost:5000${url}`} alt="barang"
-                      style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' }} />
+                    <a key={i} href={`http://localhost:5000${url}`} target="_blank" rel="noopener noreferrer">
+                      <img src={`http://localhost:5000${url}`} alt="barang"
+                        style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' }} />
+                    </a>
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Bukti Pickup & Delivery (mover upload, semua orang lihat) */}
+            {['ACCEPTED','ON_GOING','COMPLETED'].includes(order.status) && (
+              <>
+                {(isMover || (order.pickup_photo_urls?.length > 0)) && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>📦 Bukti Pickup</div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                      {(order.pickup_photo_urls || []).map((url, i) => (
+                        <a key={i} href={`http://localhost:5000${url}`} target="_blank" rel="noopener noreferrer">
+                          <img src={`http://localhost:5000${url}`} alt="pickup"
+                            style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #d1fae5' }} />
+                        </a>
+                      ))}
+                      {isMover && (order.pickup_photo_urls?.length || 0) === 0 && (
+                        <div style={{ fontSize: '0.82rem', color: '#9ca3af', alignSelf: 'center' }}>Belum ada foto bukti pickup.</div>
+                      )}
+                    </div>
+                    {isMover && order.status !== 'COMPLETED' && (
+                      <label className="btn btn-outline btn-sm" style={{ display: 'inline-block' }}>
+                        {evidenceUploading.pickup ? 'Mengunggah...' : '+ Upload Foto Pickup'}
+                        <input type="file" multiple accept="image/*" style={{ display: 'none' }}
+                          onChange={(e) => uploadEvidence(e, 'pickup')} disabled={evidenceUploading.pickup} />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {(isMover || (order.delivery_photo_urls?.length > 0)) && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>🏁 Bukti Delivery</div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                      {(order.delivery_photo_urls || []).map((url, i) => (
+                        <a key={i} href={`http://localhost:5000${url}`} target="_blank" rel="noopener noreferrer">
+                          <img src={`http://localhost:5000${url}`} alt="delivery"
+                            style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #d1fae5' }} />
+                        </a>
+                      ))}
+                      {isMover && (order.delivery_photo_urls?.length || 0) === 0 && (
+                        <div style={{ fontSize: '0.82rem', color: '#9ca3af', alignSelf: 'center' }}>Belum ada foto bukti delivery.</div>
+                      )}
+                    </div>
+                    {isMover && order.status !== 'COMPLETED' && (
+                      <label className="btn btn-outline btn-sm" style={{ display: 'inline-block' }}>
+                        {evidenceUploading.delivery ? 'Mengunggah...' : '+ Upload Foto Delivery'}
+                        <input type="file" multiple accept="image/*" style={{ display: 'none' }}
+                          onChange={(e) => uploadEvidence(e, 'delivery')} disabled={evidenceUploading.delivery} />
+                      </label>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Invalid info */}

@@ -47,6 +47,17 @@ router.get('/available',
   ctrl.getAvailableOrders
 );
 
+router.get('/earnings',
+  authenticate, requireRole('mover'),
+  ctrl.getEarnings
+);
+
+router.post('/:id/evidence',
+  authenticate, requireRole('mover'),
+  upload.array('photos', 5),
+  ctrl.uploadEvidence
+);
+
 router.get('/my-jobs',
   authenticate, requireRole('mover'),
   ctrl.getMoverOrders

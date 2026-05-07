@@ -116,7 +116,9 @@ CREATE TABLE IF NOT EXISTS moving_orders (
   needs_disassembly     BOOLEAN DEFAULT FALSE,
   estimated_item_count  INT,
 
-  photo_urls            TEXT[] DEFAULT '{}',
+  photo_urls            TEXT[] DEFAULT '{}',           -- foto barang dari user
+  pickup_photo_urls     TEXT[] DEFAULT '{}',           -- bukti kondisi saat pickup (mover)
+  delivery_photo_urls   TEXT[] DEFAULT '{}',           -- bukti kondisi saat delivery (mover)
 
   base_price            INT NOT NULL CHECK (base_price >= 0),
   surcharge             INT NOT NULL DEFAULT 0 CHECK (surcharge >= 0),
