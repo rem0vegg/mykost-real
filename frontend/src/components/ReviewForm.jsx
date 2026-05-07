@@ -1,20 +1,15 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import Icon from './Icon';
 
-/**
- * Form ulasan untuk completed order.
- * Props:
- *   orderId, orderType ('survey'|'moving'), revieweeName
- *   onSubmitted() — dipanggil setelah submit sukses
- */
 export default function ReviewForm({ orderId, orderType, revieweeName, onSubmitted }) {
-  const [existing, setExisting]   = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [rating, setRating]       = useState(5);
-  const [hoverRating, setHover]   = useState(0);
-  const [comment, setComment]     = useState('');
-  const [submitting, setSubmit]   = useState(false);
-  const [err, setErr]             = useState('');
+  const [existing, setExisting] = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [rating, setRating]     = useState(5);
+  const [hoverRating, setHover] = useState(0);
+  const [comment, setComment]   = useState('');
+  const [submitting, setSubmit] = useState(false);
+  const [err, setErr]           = useState('');
 
   useEffect(() => {
     (async () => {
@@ -46,20 +41,29 @@ export default function ReviewForm({ orderId, orderType, revieweeName, onSubmitt
   if (loading) return null;
 
   if (existing) {
-    const stars = '⭐'.repeat(existing.rating);
     return (
-      <div className="card" style={{ borderLeft: '4px solid #fbbf24' }}>
-        <div className="card-title" style={{ marginBottom: '0.5rem' }}>⭐ Ulasan Anda</div>
-        <div style={{ fontSize: '1.1rem', marginBottom: '0.4rem' }}>{stars} <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>({existing.rating}/5)</span></div>
+      <div className="mk-card" style={{ padding: 20 }}>
+        <div className="mk-row" style={{ gap: 8, marginBottom: 10 }}>
+          <Icon name="star" size={16} style={{ color: '#f59e0b' }} />
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>Ulasan Anda</div>
+        </div>
+        <div className="mk-row" style={{ gap: 4, marginBottom: 8 }}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Icon
+              key={n}
+              name="star"
+              size={18}
+              style={{ color: n <= existing.rating ? '#f59e0b' : 'var(--line-strong)', fill: n <= existing.rating ? '#f59e0b' : 'none' }}
+            />
+          ))}
+          <span style={{ fontSize: 13, color: 'var(--ink-mute)', marginLeft: 6 }}>{existing.rating}/5</span>
+        </div>
         {existing.comment && (
-          <div style={{
-            background: '#f9fafb', borderRadius: 6, padding: '0.6rem 0.75rem',
-            fontSize: '0.88rem', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-          }}>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', fontSize: 14, wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
             {existing.comment}
           </div>
         )}
-        <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: '0.4rem' }}>
+        <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 8 }}>
           Dikirim {new Date(existing.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
         </div>
       </div>
@@ -67,35 +71,54 @@ export default function ReviewForm({ orderId, orderType, revieweeName, onSubmitt
   }
 
   return (
-    <div className="card" style={{ borderLeft: '4px solid #fbbf24' }}>
-      <div className="card-title" style={{ marginBottom: '0.5rem' }}>⭐ Beri Ulasan</div>
-      <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+    <div className="mk-card" style={{ padding: 20 }}>
+      <div className="mk-row" style={{ gap: 8, marginBottom: 4 }}>
+        <Icon name="star" size={16} style={{ color: '#f59e0b' }} />
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>Beri Ulasan</div>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginBottom: 16 }}>
         Bagaimana pengalaman Anda dengan {revieweeName || (orderType === 'survey' ? 'agent' : 'mover')}?
-      </p>
+      </div>
+
       <form onSubmit={submit}>
-        {err && <div className="alert alert-error">{err}</div>}
-        <div className="form-group">
-          <label className="form-label">Rating</label>
-          <div style={{ display: 'flex', gap: '0.25rem', fontSize: '1.6rem' }}>
-            {[1,2,3,4,5].map((n) => (
-              <span
-                key={n}
-                onClick={() => setRating(n)}
-                onMouseEnter={() => setHover(n)}
-                onMouseLeave={() => setHover(0)}
-                style={{ cursor: 'pointer', filter: (hoverRating || rating) >= n ? 'none' : 'grayscale(100%)', opacity: (hoverRating || rating) >= n ? 1 : 0.4 }}
-              >⭐</span>
-            ))}
-            <span style={{ fontSize: '0.85rem', color: '#6b7280', alignSelf: 'center', marginLeft: '0.5rem' }}>{rating}/5</span>
+        {err && <div className="mk-alert mk-alert-err" style={{ marginBottom: 12 }}>{err}</div>}
+
+        <div className="mk-field" style={{ marginBottom: 14 }}>
+          <label className="mk-label">Rating</label>
+          <div className="mk-row" style={{ gap: 4, marginTop: 4 }}>
+            {[1, 2, 3, 4, 5].map((n) => {
+              const active = (hoverRating || rating) >= n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRating(n)}
+                  onMouseEnter={() => setHover(n)}
+                  onMouseLeave={() => setHover(0)}
+                  style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', lineHeight: 0 }}
+                >
+                  <Icon name="star" size={24} style={{ color: active ? '#f59e0b' : 'var(--line-strong)', fill: active ? '#f59e0b' : 'none', transition: 'color .1s' }} />
+                </button>
+              );
+            })}
+            <span style={{ fontSize: 13, color: 'var(--ink-mute)', alignSelf: 'center', marginLeft: 6 }}>{rating}/5</span>
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Komentar (opsional)</label>
-          <textarea className="form-control" rows={3} maxLength={1000}
+
+        <div className="mk-field" style={{ marginBottom: 14 }}>
+          <label className="mk-label">Komentar (opsional)</label>
+          <textarea
+            className="mk-input"
+            rows={3}
+            maxLength={1000}
             placeholder="Cerita pengalamanmu..."
-            value={comment} onChange={(e) => setComment(e.target.value)} />
+            style={{ resize: 'vertical' }}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
         </div>
-        <button className="btn btn-primary btn-sm" type="submit" disabled={submitting}>
+
+        <button className="mk-btn mk-btn-primary mk-btn-sm" type="submit" disabled={submitting}>
           {submitting ? 'Mengirim...' : 'Kirim Ulasan'}
         </button>
       </form>

@@ -1,13 +1,111 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
-import StatusBadge from '../components/StatusBadge';
+import Icon from '../components/Icon';
+
+const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+function StatusPill({ status }) {
+  const MAP = {
+    pending_payment: { cls: 'mk-pill mk-pill-warn', label: 'Menunggu pembayaran' },
+    finding_agent:   { cls: 'mk-pill mk-pill-info', label: 'Mencari surveyor' },
+    assigned:        { cls: 'mk-pill mk-pill-info', label: 'Sedang disurvei' },
+    completed:       { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
+    cancelled:       { cls: 'mk-pill',              label: 'Dibatalkan' },
+  };
+  const cfg = MAP[status] || { cls: 'mk-pill mk-pill-info', label: status };
+  return <span className={cfg.cls}>{cfg.label}</span>;
+}
+
+function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
+  return (
+    <article className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="mk-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="mk-row" style={{ gap: 6, color: 'var(--ink-mute)', fontSize: 12, marginBottom: 5 }}>
+            <Icon name="map-pin" size={13} />
+            {[order.kecamatan, order.kota].filter(Boolean).join(', ')}
+          </div>
+          <h3 style={{
+            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16,
+            margin: 0, letterSpacing: '-.01em', lineHeight: 1.3,
+          }}>
+            {order.kost_name}
+          </h3>
+          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--ink-soft)' }}>
+            Klien: <strong style={{ color: 'var(--ink)' }}>{order.user_name}</strong>
+            {order.user_phone && <span style={{ color: 'var(--ink-mute)' }}> · {order.user_phone}</span>}
+          </div>
+          {order.notes && (
+            <div style={{
+              marginTop: 8, padding: '8px 11px',
+              background: 'var(--surface-2)', borderRadius: 'var(--r-sm)',
+              fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.45, fontStyle: 'italic',
+              wordBreak: 'break-word', overflowWrap: 'anywhere',
+            }}>
+              "{order.notes}"
+            </div>
+          )}
+          {isMyOrder && order.status === 'assigned' && (
+            <div className="mk-row" style={{ gap: 6, marginTop: 8, fontSize: 12, color: 'var(--ok)', fontWeight: 600 }}>
+              <Icon name="camera" size={13} />
+              Perlu kirim hasil survei
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <StatusPill status={order.status} />
+          {!isMyOrder && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>Komisi</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--brand)' }}>
+                {rp(60000)}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mk-row" style={{ gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+        <button className="mk-btn mk-btn-ghost mk-btn-sm" onClick={() => {
+          if (!isMyOrder) { alert('Terima order terlebih dahulu untuk mengakses detail.'); return; }
+          onView(order.id);
+        }}>
+          Detail
+        </button>
+        {isMyOrder ? (
+          <button className="mk-btn mk-btn-primary mk-btn-sm" onClick={() => onView(order.id)}>
+            {order.status === 'assigned' ? (
+              <><Icon name="upload" size={14} /> Kirim Hasil</>
+            ) : 'Lihat Detail'}
+          </button>
+        ) : (
+          <button
+            className="mk-btn mk-btn-primary mk-btn-sm"
+            onClick={() => onAccept(order.id)}
+            disabled={accepting === order.id}
+          >
+            <Icon name="check" size={14} />
+            {accepting === order.id ? 'Menerima...' : 'Terima'}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
 
 export default function AgentDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [tab, setTab] = useState('available');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const _urlTab = searchParams.get('tab');
+  const tab = _urlTab === 'my' ? 'my-orders' : _urlTab === 'earn' ? 'commissions' : 'available';
+  const setTab = (t) => {
+    if (t === 'available') setSearchParams({}, { replace: true });
+    else if (t === 'my-orders') setSearchParams({ tab: 'my' }, { replace: true });
+    else if (t === 'commissions') setSearchParams({ tab: 'earn' }, { replace: true });
+  };
   const [available, setAvailable] = useState([]);
   const [myOrders, setMyOrders] = useState([]);
   const [commissions, setCommissions] = useState([]);
@@ -20,7 +118,7 @@ export default function AgentDashboard() {
       const [a, m, c] = await Promise.all([
         api.get('/api/survey-orders/available'),
         api.get('/api/survey-orders/my-orders'),
-        api.get('/api/survey-orders/agent/commissions').catch(() => ({ data: { list: [] } }))
+        api.get('/api/survey-orders/agent/commissions').catch(() => ({ data: { list: [] } })),
       ]);
       setAvailable(a.data.orders);
       setNoKota(a.data.noKota || false);
@@ -45,160 +143,182 @@ export default function AgentDashboard() {
     }
   };
 
-  const stats = {
-    available: available.length,
-    active: myOrders.filter((o) => o.status === 'assigned').length,
-    completed: myOrders.filter((o) => o.status === 'completed').length,
-  };
+  const activeCount  = myOrders.filter((o) => o.status === 'assigned').length;
+  const doneCount    = myOrders.filter((o) => o.status === 'completed').length;
+  const totalComm    = commissions.reduce((s, c) => s + (c.amount || 0), 0);
 
-  const totalCommission = commissions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-  if (loading) return <div className="spinner" />;
+  if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
   return (
-    <div className="page">
-      <div className="page-title">Dashboard Agent</div>
+    <div className="mk-page">
+      {/* Header */}
+      <div>
+        <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>
+          Surveyor{user?.kota ? ` · ${user.kota}` : ''}
+        </div>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
+          Hi, {user?.name?.split(' ')[0] || 'Surveyor'}
+        </h1>
+      </div>
 
       {/* Kota warning */}
       {noKota && (
-        <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>
-          ⚠️ Kota belum diatur. <strong>
-            <a href="/profile" style={{ color: 'inherit', textDecoration: 'underline' }}>Set kota di Profil</a>
-          </strong> agar bisa melihat dan menerima order survey.
+        <div className="mk-alert mk-alert-warn" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Icon name="alert-circle" size={16} />
+          <span>
+            Kota belum diatur.{' '}
+            <Link to="/profile" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
+              Set kota di Profil
+            </Link>{' '}
+            agar bisa melihat dan menerima order survei.
+          </span>
         </div>
       )}
 
-      <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card"><div className="stat-number">{stats.available}</div><div className="stat-label">Order Tersedia</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.active}</div><div className="stat-label">Sedang Dikerjakan</div></div>
-        <div className="stat-card"><div className="stat-number">{stats.completed}</div><div className="stat-label">Selesai</div></div>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="mk-stat">
+          <div className="mk-stat-label">Tersedia</div>
+          <div className="mk-stat-value">{available.length}</div>
+          <div className="mk-stat-sub">di {user?.kota || 'kotamu'}</div>
+        </div>
+        <div className="mk-stat">
+          <div className="mk-stat-label">Aktif</div>
+          <div className="mk-stat-value">{activeCount}</div>
+          <div className="mk-stat-sub">perlu hasil survei</div>
+        </div>
+        <div className="mk-stat">
+          <div className="mk-stat-label">Komisi bulan ini</div>
+          <div className="mk-stat-value" style={{ color: 'var(--brand)' }}>{rp(totalComm)}</div>
+          <div className="mk-stat-sub">{doneCount} selesai</div>
+        </div>
       </div>
 
-      <div className="tabs">
-        <button className={`tab-btn ${tab === 'available' ? 'active' : ''}`} onClick={() => setTab('available')}>
-          Tersedia ({available.length})
-        </button>
-        <button className={`tab-btn ${tab === 'my-orders' ? 'active' : ''}`} onClick={() => setTab('my-orders')}>
-          Pekerjaan Saya ({myOrders.length})
-        </button>
-        <button className={`tab-btn ${tab === 'commissions' ? 'active' : ''}`} onClick={() => setTab('commissions')}>
-          Komisi Saya
-        </button>
-      </div>
-
-      {tab === 'available' && (
-        <>
-          {!noKota && user?.kota && (
-            <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '1rem' }}>
-              Menampilkan order di area: <strong>{user.kota}</strong>
-            </p>
-          )}
-          {available.length === 0 && !noKota ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🔍</div>
-              <p>Tidak ada order tersedia di kota Anda saat ini.</p>
-            </div>
-          ) : (
-            available.map((order) => (
-              <div key={order.id} className="order-card">
-                <div className="order-card-header">
-                  <div style={{ flex: 1 }}>
-                    <div className="order-card-title">{order.kost_name}</div>
-                    <div className="order-meta">{order.address?.slice(0, 80)}{order.address?.length > 80 ? '...' : ''}</div>
-                    <div className="order-meta">
-                      {order.kecamatan && `${order.kecamatan}, `}{order.kota}
-                    </div>
-                    <div className="order-meta">Klien: {order.user_name} {order.user_phone && `· ${order.user_phone}`}</div>
-                    {order.notes && (
-                      <div className="order-meta" style={{ marginTop: '0.3rem', fontStyle: 'italic' }}>
-                        Catatan: {order.notes}
-                      </div>
-                    )}
-                  </div>
-                  <StatusBadge status={order.status} />
-                </div>
-                <div className="order-actions">
-                  <button
-                    className="btn btn-success btn-sm"
-                    onClick={() => acceptOrder(order.id)}
-                    disabled={accepting === order.id}
-                  >
-                    {accepting === order.id ? 'Menerima...' : '✅ Terima Order'}
-                  </button>
-                  <button className="btn btn-outline btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
-                    Lihat Detail
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </>
-      )}
-
-      {tab === 'my-orders' && (
-        <>
-          {myOrders.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
-              <p>Belum ada order yang Anda terima.</p>
-            </div>
-          ) : (
-            myOrders.map((order) => (
-              <div key={order.id} className="order-card">
-                <div className="order-card-header">
-                  <div>
-                    <div className="order-card-title">{order.kost_name}</div>
-                    <div className="order-meta">{order.kecamatan && `${order.kecamatan}, `}{order.kota}</div>
-                    <div className="order-meta">Klien: {order.user_name}</div>
-                    {order.status === 'assigned' && (
-                      <div className="order-meta" style={{ color: '#10b981', fontWeight: 600 }}>📸 Kirim hasil survei</div>
-                    )}
-                  </div>
-                  <StatusBadge status={order.status} />
-                </div>
-                <div className="order-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
-                    {order.status === 'assigned' ? 'Kirim Hasil Survei' : 'Lihat Detail'}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </>
-      )}
-
-      {tab === 'commissions' && (
-        <>
-          <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0' }}>
-            <div className="card-title" style={{ color: '#065f46' }}>Total Estimasi Komisi</div>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#047857' }}>
-              Rp {totalCommission.toLocaleString('id-ID')}
-            </p>
+      {/* Tabs */}
+      <div>
+        <div className="mk-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+          <div className="mk-tabs">
+            {[
+              { id: 'available', label: `Tersedia (${available.length})` },
+              { id: 'my-orders', label: `Pekerjaan Saya (${myOrders.length})` },
+              { id: 'commissions', label: 'Komisi' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                className={`mk-tab${tab === t.id ? ' active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
+          {tab === 'available' && (
+            <button className="mk-btn mk-btn-ghost mk-btn-sm">
+              <Icon name="filter" size={14} /> Filter
+            </button>
+          )}
+        </div>
 
-          {commissions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">💰</div>
-              <p>Belum ada data komisi tercatat.</p>
+        {/* Available orders */}
+        {tab === 'available' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {!noKota && user?.kota && (
+              <p style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                Menampilkan order di area: <strong style={{ color: 'var(--ink)' }}>{user.kota}</strong>
+              </p>
+            )}
+            {available.length === 0 && !noKota ? (
+              <div className="mk-empty">
+                <div className="mk-empty-icon"><Icon name="search" size={44} /></div>
+                <div className="mk-empty-title">Tidak ada order tersedia</div>
+                <div className="mk-empty-sub">Cek kembali nanti atau update kota di profil Anda.</div>
+              </div>
+            ) : (
+              available.map((order) => (
+                <JobCard
+                  key={order.id}
+                  order={order}
+                  onAccept={acceptOrder}
+                  accepting={accepting}
+                  onView={(id) => navigate(`/survey-orders/${id}`)}
+                  isMyOrder={false}
+                />
+              ))
+            )}
+          </div>
+        )}
+
+        {/* My orders */}
+        {tab === 'my-orders' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {myOrders.length === 0 ? (
+              <div className="mk-empty">
+                <div className="mk-empty-icon"><Icon name="clipboard" size={44} /></div>
+                <div className="mk-empty-title">Belum ada pekerjaan</div>
+                <div className="mk-empty-sub">Terima order dari tab "Tersedia" untuk mulai.</div>
+              </div>
+            ) : (
+              myOrders.map((order) => (
+                <JobCard
+                  key={order.id}
+                  order={order}
+                  onAccept={acceptOrder}
+                  accepting={accepting}
+                  onView={(id) => navigate(`/survey-orders/${id}`)}
+                  isMyOrder
+                />
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Commissions */}
+        {tab === 'commissions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Earnings summary card */}
+            <div className="mk-card" style={{
+              padding: 20, background: 'var(--brand)', border: 'none', color: '#fff',
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: .85, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>
+                Total Estimasi Komisi
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 800, letterSpacing: '-.02em' }}>
+                {rp(totalComm)}
+              </div>
             </div>
-          ) : (
-            commissions.map((comm) => (
-              <div key={comm.id} className="order-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div className="order-card-title">Order #{comm.orderId?.slice(0, 8)}</div>
-                  <div className="order-meta">Tanggal: {comm.date ? new Date(comm.date).toLocaleDateString('id-ID') : '—'}</div>
-                  <div className="order-meta">
-                    Status: <strong style={{ color: comm.status === 'Paid' ? '#10b981' : '#f59e0b' }}>{comm.status}</strong>
+
+            {commissions.length === 0 ? (
+              <div className="mk-empty">
+                <div className="mk-empty-icon"><Icon name="wallet" size={44} /></div>
+                <div className="mk-empty-title">Belum ada data komisi</div>
+              </div>
+            ) : (
+              commissions.map((comm) => (
+                <div key={comm.id} className="mk-card" style={{
+                  padding: '14px 18px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>Order #{String(comm.orderId || '').slice(0, 8)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 2 }}>
+                      {comm.date ? new Date(comm.date).toLocaleDateString('id-ID') : '—'}
+                    </div>
+                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                      Status:{' '}
+                      <strong style={{ color: comm.status === 'Paid' ? 'var(--ok)' : 'var(--warn)' }}>
+                        {comm.status}
+                      </strong>
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--brand)' }}>
+                    +{rp(comm.amount)}
                   </div>
                 </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#374151' }}>
-                  + Rp {comm.amount.toLocaleString('id-ID')}
-                </div>
-              </div>
-            ))
-          )}
-        </>
-      )}
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

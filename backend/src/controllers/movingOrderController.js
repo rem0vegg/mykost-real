@@ -628,16 +628,17 @@ async function updateOrderStatus(req, res) {
 
   // User sudah bayar di awal — saat COMPLETED, final_price = estimated_price (no haggling)
   const finalPriceUpdate = value.status === 'COMPLETED' ? order.estimated_price : null;
+  const completedAtUpdate = value.status === 'COMPLETED' ? new Date() : null;
 
   const updated = await pool.query(
     `UPDATE moving_orders
      SET status = $1,
          final_price = COALESCE($2, final_price),
-         completed_at = CASE WHEN $1 = 'COMPLETED' THEN NOW() ELSE completed_at END,
+         completed_at = COALESCE($3, completed_at),
          updated_at = NOW()
-     WHERE id = $3
+     WHERE id = $4
      RETURNING *`,
-    [value.status, finalPriceUpdate, id]
+    [value.status, finalPriceUpdate, completedAtUpdate, id]
   );
 
   await pool.query(

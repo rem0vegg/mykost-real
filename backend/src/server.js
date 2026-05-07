@@ -3,6 +3,7 @@ require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const runMigrations = require('./db/migrate');
 
 const app = express();
 
@@ -31,4 +32,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+runMigrations()
+  .then(() => app.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
+  .catch(err => { console.error('Migration failed, aborting startup:', err.message); process.exit(1); });

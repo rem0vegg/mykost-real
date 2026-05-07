@@ -23,7 +23,7 @@ export default function ExpandableText({ text, limit = 80, style }) {
             padding: 0,
             background: 'none',
             border: 'none',
-            color: '#0f3460',
+            color: 'var(--brand)',
             fontSize: '0.78rem',
             fontWeight: 600,
             cursor: 'pointer',
