@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"D:\\\\SoftEng\\\\MyKost\\\\.claude\\\\worktrees\\\\bold-goodall-8df422\" log --oneline -5)",
+      "Bash(git -C \"D:\\\\SoftEng\\\\MyKost\\\\.claude\\\\worktrees\\\\bold-goodall-8df422\" status)"
+    ]
+  }
+}

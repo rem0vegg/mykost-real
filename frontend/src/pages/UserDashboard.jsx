@@ -638,36 +638,66 @@ export default function UserDashboard() {
           {movingOrders.length === 0 ? (
             <div className="empty-state"><div className="empty-state-icon">🚚</div><p>Belum ada order pindahan.</p></div>
           ) : (
-            movingOrders.map((o) => (
-              <div key={o.id} className="order-card" style={{ borderLeftColor: o.status === 'INVALID' ? '#ef4444' : '#0f3460' }}>
-                <div className="order-card-header">
-                  <div>
-                    <div className="order-card-title">{o.pickup_location} → {o.dropoff_location}</div>
-                    <div className="order-meta">
-                      {o.move_type} · {o.vehicle_type} · {o.distance_km} km · Tanggal: {fmt(o.scheduled_date)}
-                    </div>
-                    <div className="order-meta" style={{ fontWeight: 600, color: '#0f3460' }}>
-                      {o.requires_review && o.price_min
-                        ? `Rp ${Number(o.price_min).toLocaleString('id-ID')} – Rp ${Number(o.price_max).toLocaleString('id-ID')}`
-                        : `Rp ${Number(o.estimated_price).toLocaleString('id-ID')}`}
-                    </div>
-                    {o.mover_name && <div className="order-meta">Mover: {o.mover_name}</div>}
-                    {o.status === 'INVALID' && o.invalid_reason && (
-                      <div className="order-meta" style={{ color: '#ef4444', fontWeight: 600 }}>
-                        ❌ Mismatch: {o.invalid_reason}
+            movingOrders.map((o) => {
+              const canPay    = o.payment_status === 'pending' && !['CANCELLED','INVALID','COMPLETED'].includes(o.status);
+              const canCancel = !o.mover_id && ['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(o.status);
+              return (
+                <div key={o.id} className="order-card" style={{ borderLeftColor: o.status === 'INVALID' ? '#ef4444' : '#0f3460' }}>
+                  <div className="order-card-header">
+                    <div>
+                      <div className="order-card-title">{o.pickup_location} → {o.dropoff_location}</div>
+                      <div className="order-meta">
+                        {o.vehicle_type} · {o.distance_km} km · Tanggal: {fmt(o.scheduled_date)}
                       </div>
-                    )}
+                      <div className="order-meta" style={{ fontWeight: 600, color: '#0f3460' }}>
+                        Rp {Number(o.estimated_price).toLocaleString('id-ID')}
+                      </div>
+                      {o.payment_status === 'pending' && (
+                        <div className="order-meta" style={{ color: '#e94560', fontWeight: 600 }}>
+                          ⏳ Belum dibayar
+                        </div>
+                      )}
+                      {o.payment_status === 'paid' && !o.mover_id && (
+                        <div className="order-meta" style={{ color: '#10b981', fontWeight: 600 }}>
+                          ✓ Sudah dibayar — menunggu mover
+                        </div>
+                      )}
+                      {o.mover_name && <div className="order-meta">Mover: {o.mover_name}</div>}
+                      {o.status === 'INVALID' && o.invalid_reason && (
+                        <div className="order-meta" style={{ color: '#ef4444', fontWeight: 600 }}>
+                          ❌ Mismatch: {o.invalid_reason}
+                        </div>
+                      )}
+                    </div>
+                    <StatusBadge status={o.status} />
                   </div>
-                  <StatusBadge status={o.status} />
+                  <div className="order-actions">
+                    {canPay && (
+                      <button className="btn btn-primary btn-sm" onClick={async () => {
+                        try {
+                          await api.post(`/api/moving-orders/${o.id}/pay`);
+                          await fetchData();
+                        } catch (err) { alert(err.response?.data?.error || 'Gagal bayar'); }
+                      }}>💳 Bayar Sekarang</button>
+                    )}
+                    {canCancel && (
+                      <button className="btn btn-outline btn-sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                        onClick={async () => {
+                          if (!confirm('Yakin ingin membatalkan order ini?')) return;
+                          try {
+                            await api.post(`/api/moving-orders/${o.id}/cancel`);
+                            await fetchData();
+                          } catch (err) { alert(err.response?.data?.error || 'Gagal cancel'); }
+                        }}>Batalkan</button>
+                    )}
+                    {!['DRAFT','INSTANT_CONFIRMED','REVIEW_REQUIRED','INVALID','CANCELLED'].includes(o.status) && (
+                      <button className="btn btn-outline btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>💬 Chat Mover</button>
+                    )}
+                    <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>Lihat Detail</button>
+                  </div>
                 </div>
-                <div className="order-actions">
-                  {!['DRAFT','INSTANT_CONFIRMED','REVIEW_REQUIRED','INVALID','CANCELLED'].includes(o.status) && (
-                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>💬 Chat Mover</button>
-                  )}
-                  <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/moving-orders/${o.id}`)}>Lihat Detail</button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </>
       )}

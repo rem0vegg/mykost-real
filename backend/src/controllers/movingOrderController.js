@@ -310,9 +310,74 @@ async function getAvailableOrders(req, res) {
      JOIN users u ON u.id = mo.user_id
      WHERE mo.status = 'INSTANT_CONFIRMED'
        AND mo.mover_id IS NULL
+       AND mo.payment_status = 'paid'
      ORDER BY mo.created_at ASC`
   );
   res.json({ orders: result.rows });
+}
+
+/**
+ * POST /moving-orders/:id/pay  (user)
+ * Tandai order sebagai sudah dibayar (simulated payment).
+ */
+async function payOrder(req, res) {
+  const { id } = req.params;
+
+  const found = await pool.query('SELECT * FROM moving_orders WHERE id = $1', [id]);
+  if (found.rows.length === 0) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+  const order = found.rows[0];
+  if (order.user_id !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+  if (order.payment_status === 'paid') return res.status(400).json({ error: 'Order sudah dibayar' });
+  if (['CANCELLED','INVALID','COMPLETED'].includes(order.status)) {
+    return res.status(400).json({ error: 'Order sudah final, tidak bisa dibayar' });
+  }
+
+  const updated = await pool.query(
+    `UPDATE moving_orders
+     SET payment_status = 'paid', updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
+
+  res.json({ order: updated.rows[0], message: 'Pembayaran berhasil. Order sekarang aktif untuk mover.' });
+}
+
+/**
+ * POST /moving-orders/:id/cancel  (user)
+ * User membatalkan order. Hanya bisa kalau belum ada mover yang accept.
+ */
+async function cancelOrder(req, res) {
+  const { id } = req.params;
+
+  const found = await pool.query('SELECT * FROM moving_orders WHERE id = $1', [id]);
+  if (found.rows.length === 0) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+  const order = found.rows[0];
+  if (order.user_id !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+  if (order.mover_id) {
+    return res.status(400).json({ error: 'Order sudah diambil mover, tidak bisa dibatalkan' });
+  }
+  if (!['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status)) {
+    return res.status(400).json({ error: `Order tidak bisa dibatalkan dari status ${order.status}` });
+  }
+
+  const updated = await pool.query(
+    `UPDATE moving_orders
+     SET status = 'CANCELLED', updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
+
+  await pool.query(
+    `INSERT INTO moving_order_status_history (order_id, from_status, to_status, note, changed_by)
+     VALUES ($1, $2, 'CANCELLED', 'Dibatalkan oleh user', $3)`,
+    [id, order.status, req.user.id]
+  );
+
+  res.json({ order: updated.rows[0], message: 'Order berhasil dibatalkan' });
 }
 
 /**
@@ -641,4 +706,6 @@ module.exports = {
   rebookOrder,
   getVehicles,
   reviewOrder,
+  payOrder,
+  cancelOrder,
 };

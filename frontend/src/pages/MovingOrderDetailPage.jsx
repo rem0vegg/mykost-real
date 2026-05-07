@@ -126,6 +126,23 @@ export default function MovingOrderDetailPage() {
   const canUpdateStatus  = isMover && ['ACCEPTED','ON_GOING'].includes(order.status);
   const canReportMismatch= isMover && ['ACCEPTED','ON_GOING'].includes(order.status);
   const canRebook        = isUser  && order.status === 'INVALID';
+  const canPay           = isUser  && order.payment_status === 'pending' && !['CANCELLED','INVALID','COMPLETED'].includes(order.status);
+  const canCancel        = isUser  && !order.mover_id && ['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status);
+
+  const payOrder = async () => {
+    try {
+      await api.post(`/api/moving-orders/${id}/pay`);
+      await fetchOrder();
+    } catch (err) { alert(err.response?.data?.error || 'Gagal bayar'); }
+  };
+
+  const cancelOrder = async () => {
+    if (!confirm('Yakin ingin membatalkan order ini?')) return;
+    try {
+      await api.post(`/api/moving-orders/${id}/cancel`);
+      await fetchOrder();
+    } catch (err) { alert(err.response?.data?.error || 'Gagal cancel'); }
+  };
 
   return (
     <div className="page">
@@ -209,6 +226,27 @@ export default function MovingOrderDetailPage() {
               <div style={{ marginTop: '1rem', background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 8, padding: '0.75rem' }}>
                 <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: '0.25rem' }}>❌ Order Dibatalkan (Mismatch)</div>
                 <div style={{ fontSize: '0.88rem' }}>Alasan: <strong>{order.invalid_reason}</strong></div>
+              </div>
+            )}
+
+            {/* Payment & Cancel actions untuk user */}
+            {(canPay || canCancel) && (
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {canPay && (
+                  <button className="btn btn-primary btn-sm" onClick={payOrder}>
+                    💳 Bayar Sekarang — Rp {Number(order.estimated_price).toLocaleString('id-ID')}
+                  </button>
+                )}
+                {canCancel && (
+                  <button className="btn btn-outline btn-sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={cancelOrder}>
+                    Batalkan Order
+                  </button>
+                )}
+              </div>
+            )}
+            {isUser && order.payment_status === 'paid' && !order.mover_id && (
+              <div style={{ marginTop: '1rem', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 8, padding: '0.6rem 0.75rem', fontSize: '0.85rem', color: '#15803d' }}>
+                ✓ Pembayaran terkonfirmasi — menunggu mover mengambil order ini
               </div>
             )}
           </div>

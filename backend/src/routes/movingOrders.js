@@ -31,6 +31,16 @@ router.post('/:id/rebook',
   ctrl.rebookOrder
 );
 
+router.post('/:id/pay',
+  authenticate, requireRole('user'),
+  ctrl.payOrder
+);
+
+router.post('/:id/cancel',
+  authenticate, requireRole('user'),
+  ctrl.cancelOrder
+);
+
 // ── Mover routes ──────────────────────────────────────────────────────────────
 router.get('/available',
   authenticate, requireRole('mover'),

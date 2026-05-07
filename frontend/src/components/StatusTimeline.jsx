@@ -9,13 +9,17 @@ export default function StatusTimeline({ history }) {
 
   return (
     <div className="timeline">
-      {history.map((item) => (
-        <div key={item.id} className="timeline-item">
-          <div className="timeline-status">{item.status.replace('_', ' ')}</div>
-          {item.note && <div className="timeline-note">{item.note}</div>}
-          <div className="timeline-date">by {item.changed_by_name} &middot; {fmt(item.created_at)}</div>
-        </div>
-      ))}
+      {history.map((item) => {
+        // Survey order pakai `status`, moving order v2 pakai `to_status`
+        const statusValue = item.to_status || item.status || '';
+        return (
+          <div key={item.id} className="timeline-item">
+            <div className="timeline-status">{statusValue.replace(/_/g, ' ')}</div>
+            {item.note && <div className="timeline-note">{item.note}</div>}
+            <div className="timeline-date">by {item.changed_by_name} &middot; {fmt(item.created_at)}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }

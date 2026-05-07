@@ -122,6 +122,9 @@ CREATE TABLE IF NOT EXISTS moving_orders (
   is_round_trip         BOOLEAN DEFAULT FALSE,
   is_door_to_door       BOOLEAN DEFAULT FALSE,
 
+  payment_status        VARCHAR(20) NOT NULL DEFAULT 'pending'
+                          CHECK (payment_status IN ('pending','paid','refunded')),
+
   requires_review       BOOLEAN DEFAULT FALSE,
 
   status                VARCHAR(30) NOT NULL DEFAULT 'DRAFT'
