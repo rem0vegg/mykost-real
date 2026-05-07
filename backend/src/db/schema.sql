@@ -109,6 +109,13 @@ CREATE TABLE IF NOT EXISTS moving_orders (
 
   has_large_items       BOOLEAN DEFAULT FALSE,
 
+  -- Operational details (untuk mover)
+  has_parking           BOOLEAN DEFAULT FALSE,
+  narrow_alley          BOOLEAN DEFAULT FALSE,
+  has_fragile           BOOLEAN DEFAULT FALSE,
+  needs_disassembly     BOOLEAN DEFAULT FALSE,
+  estimated_item_count  INT,
+
   photo_urls            TEXT[] DEFAULT '{}',
 
   base_price            INT NOT NULL CHECK (base_price >= 0),

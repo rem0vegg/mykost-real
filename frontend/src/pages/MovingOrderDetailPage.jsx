@@ -5,6 +5,31 @@ import useAuthStore from '../store/authStore';
 import StatusBadge from '../components/StatusBadge';
 import StatusTimeline from '../components/StatusTimeline';
 import Chat from '../components/Chat';
+import ExpandableText, { maskPhone } from '../components/ExpandableText';
+
+const VEHICLE_LABEL = { MOTORCYCLE: '🏍️ Motor', VAN: '🚐 Van', PICKUP_BOX: '🚛 Pickup Box' };
+
+function InfoCell({ label, value }) {
+  return (
+    <div style={{ background: '#f9fafb', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+      <div style={{ fontSize: '0.72rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ fontWeight: 700, marginTop: '0.15rem', fontSize: '0.92rem' }}>{value}</div>
+    </div>
+  );
+}
+
+function MapsLink({ lat, lng, label = 'Buka di Maps' }) {
+  if (!lat || !lng) return null;
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${lat},${lng}`}
+      target="_blank" rel="noopener noreferrer"
+      style={{ fontSize: '0.78rem', color: '#0f3460', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}
+    >
+      🗺️ {label}
+    </a>
+  );
+}
 
 const MISMATCH_REASONS = [
   { value: 'OVER_CAPACITY',      label: 'Barang melebihi kapasitas kendaraan' },
@@ -26,7 +51,7 @@ export default function MovingOrderDetailPage() {
 
   // Mover: update status
   const [showStatusForm, setShowStatusForm] = useState(false);
-  const [statusForm,     setStatusForm]     = useState({ status: '', note: '', final_price: '' });
+  const [statusForm,     setStatusForm]     = useState({ status: '', note: '' });
   const [updating,       setUpdating]       = useState(false);
   const [statusErr,      setStatusErr]      = useState('');
 
@@ -65,12 +90,9 @@ export default function MovingOrderDetailPage() {
     setUpdating(true); setStatusErr('');
     try {
       const payload = { status: statusForm.status, note: statusForm.note || undefined };
-      if (statusForm.status === 'COMPLETED' && statusForm.final_price) {
-        payload.final_price = parseInt(statusForm.final_price);
-      }
       await api.put(`/api/moving-orders/${id}/status`, payload);
       setShowStatusForm(false);
-      setStatusForm({ status: '', note: '', final_price: '' });
+      setStatusForm({ status: '', note: '' });
       await fetchOrder();
     } catch (err) {
       setStatusErr(err.response?.data?.error || 'Gagal update status');
@@ -163,57 +185,118 @@ export default function MovingOrderDetailPage() {
         <div>
           {/* Info order */}
           <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <div>
-                <div className="card-title">Detail Order Pindahan</div>
-                <StatusBadge status={order.status} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem' }}>
+              <div className="card-title" style={{ marginBottom: 0 }}>Detail Order Pindahan</div>
+              <StatusBadge status={order.status} />
+            </div>
+
+            {/* Quick info grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.5rem', marginBottom: '1rem' }}>
+              <InfoCell label="Tanggal"   value={fmt(order.scheduled_date)} />
+              <InfoCell label="Kendaraan" value={VEHICLE_LABEL[order.vehicle_type] || order.vehicle_type} />
+              <InfoCell label="Jarak"     value={`${order.distance_km} km`} />
+            </div>
+
+            {/* Lokasi */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f3460', marginBottom: '0.4rem' }}>📍 Lokasi Pickup</div>
+              {isMover || (isUser && order.mover_id) ? (
+                <>
+                  <div style={{ fontSize: '0.88rem', wordBreak: 'break-word' }}>{order.pickup_location}</div>
+                  <MapsLink lat={order.pickup_latitude} lng={order.pickup_longitude} />
+                </>
+              ) : (
+                <div style={{ fontSize: '0.88rem' }}>
+                  <ExpandableText text={order.pickup_location} limit={70} />
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f3460', marginBottom: '0.4rem' }}>🎯 Lokasi Tujuan</div>
+              {isMover || (isUser && order.mover_id) ? (
+                <>
+                  <div style={{ fontSize: '0.88rem', wordBreak: 'break-word' }}>{order.dropoff_location}</div>
+                  <MapsLink lat={order.dropoff_latitude} lng={order.dropoff_longitude} />
+                </>
+              ) : (
+                <div style={{ fontSize: '0.88rem' }}>
+                  <ExpandableText text={order.dropoff_location} limit={70} />
+                </div>
+              )}
+            </div>
+
+            {/* Detail Operasional */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f3460', marginBottom: '0.4rem' }}>📋 Detail Operasional</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 1rem', fontSize: '0.85rem' }}>
+                <div>Lantai Pickup: <strong>Lt. {order.pickup_floor}</strong></div>
+                <div>Lantai Tujuan: <strong>Lt. {order.dropoff_floor}</strong></div>
+                <div>Lift: <strong>{order.has_lift ? 'Ada' : 'Tidak'}</strong></div>
+                {order.estimated_item_count != null && (
+                  <div>Estimasi Barang: <strong>{order.estimated_item_count} item</strong></div>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+                {order.is_round_trip      && <span className="op-tag">🔁 Pulang Pergi</span>}
+                {order.is_door_to_door    && <span className="op-tag">🚪 Door-to-Door</span>}
+                {order.has_large_items    && <span className="op-tag">📦 Barang Besar</span>}
+                {order.has_fragile        && <span className="op-tag op-tag-warn">⚠️ Fragile</span>}
+                {order.needs_disassembly  && <span className="op-tag">🔧 Bongkar Pasang</span>}
+                {order.has_parking        && <span className="op-tag op-tag-good">🅿️ Parkir Tersedia</span>}
+                {order.narrow_alley       && <span className="op-tag op-tag-warn">⚠️ Gang Sempit</span>}
               </div>
             </div>
 
-            <div style={{ display: 'grid', gap: '0.45rem', fontSize: '0.9rem' }}>
-              <div><strong>Pickup:</strong> {order.pickup_location}</div>
-              <div><strong>Tujuan:</strong> {order.dropoff_location}</div>
-              <div><strong>Jarak:</strong> {order.distance_km} km</div>
-              <div><strong>Tipe:</strong> {order.move_type}</div>
-              <div><strong>Kendaraan:</strong> {order.vehicle_type}</div>
-              <div><strong>Lantai Pickup:</strong> Lt. {order.pickup_floor} {order.has_lift ? '(ada lift)' : ''}</div>
-              <div><strong>Lantai Tujuan:</strong> Lt. {order.dropoff_floor}</div>
-              {order.is_round_trip    && <div>✓ Pulang Pergi (PP)</div>}
-              {order.is_door_to_door  && <div>✓ Door-to-Door</div>}
-              {order.has_large_items  && <div>⚠️ Ada barang besar</div>}
-              {order.notes && <div><strong>Catatan:</strong> {order.notes}</div>}
-              <div><strong>Tanggal:</strong> {fmt(order.scheduled_date)}</div>
-              {order.mover_id && <div><strong>Mover:</strong> {order.mover_name} {order.mover_phone && `(${order.mover_phone})`}</div>}
-              {isMover && <div><strong>Pemesan:</strong> {order.user_name} {order.user_phone && `(${order.user_phone})`}</div>}
+            {/* Catatan */}
+            {order.notes && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f3460', marginBottom: '0.4rem' }}>📝 Catatan</div>
+                <div style={{ fontSize: '0.88rem' }}>
+                  <ExpandableText text={order.notes} limit={150} />
+                </div>
+              </div>
+            )}
+
+            {/* Kontak */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f3460', marginBottom: '0.4rem' }}>👤 Kontak</div>
+              {isUser && order.mover_id && (
+                <div style={{ fontSize: '0.88rem' }}>
+                  <strong>Mover:</strong> {order.mover_name}
+                  {order.mover_phone && <> · <a href={`tel:${order.mover_phone}`} style={{ color: '#0f3460', fontWeight: 600 }}>{order.mover_phone}</a></>}
+                </div>
+              )}
+              {isUser && !order.mover_id && (
+                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Belum ada mover. Kontak akan muncul setelah mover menerima order.</div>
+              )}
+              {user.role === 'mover' && (
+                <div style={{ fontSize: '0.88rem' }}>
+                  <strong>Pemesan:</strong> {order.user_name}
+                  {order.user_phone && (
+                    isMover
+                      ? <> · <a href={`tel:${order.user_phone}`} style={{ color: '#0f3460', fontWeight: 600 }}>{order.user_phone}</a></>
+                      : <> · <span style={{ color: '#6b7280' }}>{maskPhone(order.user_phone)} <span style={{ fontSize: '0.75rem' }}>(akan terbuka setelah accept)</span></span></>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Pricing */}
             <div style={{ marginTop: '1rem', background: '#f8faff', borderRadius: 8, padding: '0.75rem', fontSize: '0.88rem' }}>
               <div style={{ fontWeight: 700, marginBottom: '0.35rem', color: '#0f3460' }}>Rincian Harga</div>
               <div>Tarif dasar: <strong>{rp(order.base_price)}</strong></div>
-              {order.surcharge > 0   && <div>Surcharge: <strong>{rp(order.surcharge)}</strong></div>}
-              {order.addon_price > 0 && <div>Add-on: <strong>{rp(order.addon_price)}</strong></div>}
+              {order.surcharge > 0       && <div>Surcharge: <strong>{rp(order.surcharge)}</strong></div>}
+              {order.addon_price > 0     && <div>Add-on: <strong>{rp(order.addon_price)}</strong></div>}
+              {order.is_round_trip       && <div>Pulang pergi (+50%): <strong>termasuk</strong></div>}
               <div style={{ marginTop: '0.35rem', borderTop: '1px solid #e5e7eb', paddingTop: '0.35rem' }}>
-                {order.requires_review && order.price_min ? (
-                  <span style={{ color: '#92400e', fontWeight: 700 }}>
-                    Estimasi: {rp(order.price_min)} – {rp(order.price_max)}
-                  </span>
-                ) : (
-                  <span style={{ color: '#0f3460', fontWeight: 800, fontSize: '1rem' }}>
-                    Total: {rp(order.estimated_price)}
-                  </span>
+                <span style={{ color: '#0f3460', fontWeight: 800, fontSize: '1rem' }}>
+                  Total: {rp(order.estimated_price)}
+                </span>
+                {order.payment_status === 'paid' && (
+                  <span style={{ marginLeft: '0.5rem', color: '#10b981', fontSize: '0.78rem', fontWeight: 700 }}>✓ LUNAS</span>
                 )}
               </div>
-              {order.final_price && (
-                <div style={{ color: '#059669', fontWeight: 700, marginTop: '0.25rem' }}>
-                  Harga Final: {rp(order.final_price)}
-                </div>
-              )}
-              {order.requires_review && (
-                <div style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: '#b45309' }}>
-                  ⚠️ Order ini perlu review admin sebelum dikonfirmasi
-                </div>
-              )}
             </div>
 
             {/* Foto barang */}
@@ -283,12 +366,8 @@ export default function MovingOrderDetailPage() {
                     </select>
                   </div>
                   {statusForm.status === 'COMPLETED' && (
-                    <div className="form-group">
-                      <label className="form-label">Harga Final (Rp) *</label>
-                      <input className="form-control" type="number" min="0"
-                        value={statusForm.final_price}
-                        onChange={(e) => setStatusForm({ ...statusForm, final_price: e.target.value })}
-                        placeholder="Masukkan harga final" required />
+                    <div style={{ background: '#f0f4ff', borderRadius: 6, padding: '0.6rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.85rem', color: '#0f3460' }}>
+                      User sudah membayar <strong>Rp {Number(order.estimated_price).toLocaleString('id-ID')}</strong> di awal — tidak perlu input harga.
                     </div>
                   )}
                   <div className="form-group">

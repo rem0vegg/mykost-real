@@ -35,7 +35,10 @@ export default function UserDashboard() {
     move_type: 'RINGAN', vehicle_type: 'MOTORCYCLE',
     pickup_floor: 1, dropoff_floor: 1, has_lift: false,
     has_large_items: false, is_round_trip: false, is_door_to_door: false,
-    extra_helper: false, notes: '', scheduled_date: '',
+    extra_helper: false,
+    has_parking: false, narrow_alley: false, has_fragile: false,
+    needs_disassembly: false, estimated_item_count: '',
+    notes: '', scheduled_date: '',
   };
   const [movingForm, setMovingForm] = useState(MOVING_FORM_DEFAULT);
   const [pickupCoords, setPickupCoords]   = useState(null);
@@ -227,6 +230,7 @@ export default function UserDashboard() {
         dropoff_latitude:   dropoffCoords?.lat || null,
         dropoff_longitude:  dropoffCoords?.lng || null,
         scheduled_date:     movingForm.scheduled_date || null,
+        estimated_item_count: movingForm.estimated_item_count ? parseInt(movingForm.estimated_item_count) : null,
       });
 
       // Upload foto setelah order dibuat
@@ -577,6 +581,32 @@ export default function UserDashboard() {
                     Extra Helper (+Rp 75.000)
                   </label>
                 )}
+              </div>
+
+              {/* Info untuk mover (tidak mempengaruhi harga) */}
+              <p className="form-label" style={{ fontWeight: 700, marginBottom: '0.5rem', marginTop: '0.75rem' }}>
+                Info Operasional <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.8rem' }}>(membantu mover bersiap)</span>
+              </p>
+              <div className="form-group">
+                <label className="form-label">Estimasi Jumlah Barang</label>
+                <input className="form-control" type="number" min="0" placeholder="Contoh: 15"
+                  value={movingForm.estimated_item_count}
+                  onChange={(e) => setMovingForm({ ...movingForm, estimated_item_count: e.target.value })} />
+                <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Kira-kira berapa kardus / item</span>
+              </div>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                {[
+                  { key: 'has_parking',       label: 'Area parkir tersedia' },
+                  { key: 'narrow_alley',      label: 'Gang sempit / akses sulit' },
+                  { key: 'has_fragile',       label: 'Ada barang fragile' },
+                  { key: 'needs_disassembly', label: 'Perlu bongkar pasang' },
+                ].map(({ key, label }) => (
+                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={movingForm[key]}
+                      onChange={(e) => setMovingForm({ ...movingForm, [key]: e.target.checked })} />
+                    {label}
+                  </label>
+                ))}
               </div>
               <div className="form-group">
                 <label className="form-label">Catatan (opsional)</label>

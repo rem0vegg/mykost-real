@@ -231,6 +231,22 @@ button {
 .card .order-meta,
 .card .timeline-note { word-break: break-word; overflow-wrap: anywhere; }
 
+/* Operational tags (badges di detail order) */
+.op-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+}
+.op-tag-good { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.op-tag-warn { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
 /* Chat */
 .chat-box {
   border: 1.5px solid #e5e7eb;

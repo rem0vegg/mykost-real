@@ -48,6 +48,13 @@ const createSchema = Joi.object({
   // Barang
   has_large_items:    Joi.boolean().default(false),
 
+  // Operational details
+  has_parking:          Joi.boolean().default(false),
+  narrow_alley:         Joi.boolean().default(false),
+  has_fragile:          Joi.boolean().default(false),
+  needs_disassembly:    Joi.boolean().default(false),
+  estimated_item_count: Joi.number().integer().min(0).allow(null),
+
   // Add-ons
   is_round_trip:      Joi.boolean().default(false),
   is_door_to_door:    Joi.boolean().default(false),
@@ -141,11 +148,13 @@ async function createOrder(req, res) {
          move_type, vehicle_type, vehicle_mismatch_warned,
          pickup_floor, dropoff_floor, has_lift, notes,
          has_large_items, is_round_trip, is_door_to_door,
+         has_parking, narrow_alley, has_fragile, needs_disassembly, estimated_item_count,
          base_price, surcharge, addon_price, estimated_price,
          price_min, price_max, requires_review, status, scheduled_date
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-         $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+         $16,$17,$18,$19,$20,$21,$22,$23,
+         $24,$25,$26,$27,$28,$29,$30,$31,$32
        ) RETURNING *`,
       [
         req.user.id,
@@ -155,6 +164,8 @@ async function createOrder(req, res) {
         value.move_type, value.vehicle_type, value.vehicle_mismatch_warned,
         value.pickup_floor, value.dropoff_floor, value.has_lift, value.notes || null,
         value.has_large_items, value.is_round_trip, value.is_door_to_door,
+        value.has_parking, value.narrow_alley, value.has_fragile, value.needs_disassembly,
+        value.estimated_item_count || null,
         pricing.base_price, pricing.surcharge, pricing.addon_price, pricing.estimated_price,
         pricing.price_min || null, pricing.price_max || null,
         pricing.requires_review,
@@ -449,9 +460,6 @@ async function updateOrderStatus(req, res) {
   const schema = Joi.object({
     status: Joi.string().valid('ON_GOING','COMPLETED').required(),
     note:   Joi.string().allow('', null),
-    final_price: Joi.number().integer().positive().when('status', {
-      is: 'COMPLETED', then: Joi.required(),
-    }),
   });
 
   const { error, value } = schema.validate(req.body);
@@ -473,6 +481,9 @@ async function updateOrderStatus(req, res) {
     });
   }
 
+  // User sudah bayar di awal — saat COMPLETED, final_price = estimated_price (no haggling)
+  const finalPriceUpdate = value.status === 'COMPLETED' ? order.estimated_price : null;
+
   const updated = await pool.query(
     `UPDATE moving_orders
      SET status = $1,
@@ -480,7 +491,7 @@ async function updateOrderStatus(req, res) {
          updated_at = NOW()
      WHERE id = $3
      RETURNING *`,
-    [value.status, value.final_price || null, id]
+    [value.status, finalPriceUpdate, id]
   );
 
   await pool.query(
