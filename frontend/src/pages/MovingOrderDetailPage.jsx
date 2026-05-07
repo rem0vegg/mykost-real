@@ -119,6 +119,7 @@ export default function MovingOrderDetailPage() {
 
   const isMover   = user.role === 'mover' && order.mover_id === user.id;
   const isUser    = user.role === 'user'  && order.user_id  === user.id;
+  const canAccept = user.role === 'mover' && !order.mover_id && order.status === 'INSTANT_CONFIRMED' && order.payment_status === 'paid';
   const otherUser = user.role === 'user'  ? order.mover_id  : order.user_id;
   const fmt = (d) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
   const rp  = (n) => n != null ? `Rp ${Number(n).toLocaleString('id-ID')}` : '—';
@@ -142,6 +143,13 @@ export default function MovingOrderDetailPage() {
       await api.post(`/api/moving-orders/${id}/cancel`);
       await fetchOrder();
     } catch (err) { alert(err.response?.data?.error || 'Gagal cancel'); }
+  };
+
+  const acceptJob = async () => {
+    try {
+      await api.post(`/api/moving-orders/${id}/accept`);
+      await fetchOrder();
+    } catch (err) { alert(err.response?.data?.error || 'Gagal accept job'); }
   };
 
   return (
@@ -229,8 +237,8 @@ export default function MovingOrderDetailPage() {
               </div>
             )}
 
-            {/* Payment & Cancel actions untuk user */}
-            {(canPay || canCancel) && (
+            {/* Action buttons */}
+            {(canPay || canCancel || canAccept) && (
               <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {canPay && (
                   <button className="btn btn-primary btn-sm" onClick={payOrder}>
@@ -240,6 +248,11 @@ export default function MovingOrderDetailPage() {
                 {canCancel && (
                   <button className="btn btn-outline btn-sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={cancelOrder}>
                     Batalkan Order
+                  </button>
+                )}
+                {canAccept && (
+                  <button className="btn btn-success btn-sm" onClick={acceptJob}>
+                    ✓ Ambil Job Ini
                   </button>
                 )}
               </div>

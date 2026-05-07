@@ -1,3 +1,5 @@
+import StatusBadge from './StatusBadge';
+
 export default function StatusTimeline({ history }) {
   if (!history || history.length === 0) return null;
 
@@ -14,9 +16,11 @@ export default function StatusTimeline({ history }) {
         const statusValue = item.to_status || item.status || '';
         return (
           <div key={item.id} className="timeline-item">
-            <div className="timeline-status">{statusValue.replace(/_/g, ' ')}</div>
+            <div className="timeline-status" style={{ marginBottom: '0.25rem' }}>
+              <StatusBadge status={statusValue} />
+            </div>
             {item.note && <div className="timeline-note">{item.note}</div>}
-            <div className="timeline-date">by {item.changed_by_name} &middot; {fmt(item.created_at)}</div>
+            <div className="timeline-date">oleh {item.changed_by_name} &middot; {fmt(item.created_at)}</div>
           </div>
         );
       })}

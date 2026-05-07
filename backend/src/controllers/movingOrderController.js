@@ -276,7 +276,19 @@ async function getOrderById(req, res) {
   if (result.rows.length === 0) return res.status(404).json({ error: 'Order tidak ditemukan' });
 
   const order = result.rows[0];
-  if (order.user_id !== req.user.id && order.mover_id !== req.user.id) {
+  // Akses diperbolehkan untuk:
+  // - Owner order (user)
+  // - Mover yang sudah ditugaskan
+  // - Mover manapun JIKA order masih available (INSTANT_CONFIRMED + paid + belum ada mover)
+  const isOwner       = order.user_id === req.user.id;
+  const isAssigned    = order.mover_id === req.user.id;
+  const isAvailableForMover =
+    req.user.role === 'mover'
+    && !order.mover_id
+    && order.status === 'INSTANT_CONFIRMED'
+    && order.payment_status === 'paid';
+
+  if (!isOwner && !isAssigned && !isAvailableForMover) {
     return res.status(403).json({ error: 'Akses ditolak' });
   }
 
