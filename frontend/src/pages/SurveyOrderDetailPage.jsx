@@ -64,6 +64,14 @@ export default function SurveyOrderDetailPage() {
     return () => urls.forEach(URL.revokeObjectURL);
   }, [surveyPhotos]);
 
+  // Auto-scroll ke chat jika ada hash #chat (dari klik notif).
+  // HARUS sebelum conditional return supaya hooks tidak berubah jumlahnya.
+  useEffect(() => {
+    if (location.hash === '#chat' && order && chatRef.current) {
+      setTimeout(() => chatRef.current.scrollIntoView({ behavior: 'smooth' }), 200);
+    }
+  }, [location.hash, order]);
+
   const handlePay = async () => {
     setPaying(true); setPayErr('');
     try {
@@ -171,13 +179,6 @@ export default function SurveyOrderDetailPage() {
     if (isAssignedAgent) return order.user_id;
     return null;
   })();
-
-  // Auto-scroll ke chat jika ada hash #chat (dari klik notif)
-  useEffect(() => {
-    if (location.hash === '#chat' && chatPartnerId && chatRef.current) {
-      setTimeout(() => chatRef.current.scrollIntoView({ behavior: 'smooth' }), 200);
-    }
-  }, [location.hash, chatPartnerId]);
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
 
