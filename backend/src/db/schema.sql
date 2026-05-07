@@ -136,9 +136,9 @@ CREATE TABLE IF NOT EXISTS moving_orders (
 
   requires_review       BOOLEAN DEFAULT FALSE,
 
-  status                VARCHAR(30) NOT NULL DEFAULT 'DRAFT'
+  status                VARCHAR(30) NOT NULL DEFAULT 'PENDING_PAYMENT'
                           CHECK (status IN (
-                            'DRAFT','SUBMITTED','INSTANT_CONFIRMED',
+                            'DRAFT','SUBMITTED','PENDING_PAYMENT','INSTANT_CONFIRMED',
                             'REVIEW_REQUIRED','ACCEPTED','ON_GOING',
                             'COMPLETED','INVALID','CANCELLED'
                           )),

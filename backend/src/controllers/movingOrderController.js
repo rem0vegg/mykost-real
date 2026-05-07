@@ -133,10 +133,8 @@ async function createOrder(req, res) {
   const pricing         = buildPricing(value);
   const vehicle_warning = getVehicleWarning(value);
 
-  // Tipe BERAT wajib upload foto sebelum SUBMITTED.
-  // Di sini kita tetap izinkan create dengan status DRAFT,
-  // foto bisa diupload setelah ini via POST /:id/photos.
-  const initialStatus = pricing.requires_review ? 'REVIEW_REQUIRED' : 'INSTANT_CONFIRMED';
+  // Order baru selalu PENDING_PAYMENT — naik ke INSTANT_CONFIRMED setelah user bayar.
+  const initialStatus = pricing.requires_review ? 'REVIEW_REQUIRED' : 'PENDING_PAYMENT';
 
   const client = await pool.connect();
   try {
@@ -455,13 +453,24 @@ async function payOrder(req, res) {
     return res.status(400).json({ error: 'Order sudah final, tidak bisa dibayar' });
   }
 
+  // Naikkan status ke INSTANT_CONFIRMED jika sebelumnya PENDING_PAYMENT
+  const newStatus = order.status === 'PENDING_PAYMENT' ? 'INSTANT_CONFIRMED' : order.status;
+
   const updated = await pool.query(
     `UPDATE moving_orders
-     SET payment_status = 'paid', updated_at = NOW()
-     WHERE id = $1
+     SET payment_status = 'paid', status = $1, updated_at = NOW()
+     WHERE id = $2
      RETURNING *`,
-    [id]
+    [newStatus, id]
   );
+
+  if (newStatus !== order.status) {
+    await pool.query(
+      `INSERT INTO moving_order_status_history (order_id, from_status, to_status, note, changed_by)
+       VALUES ($1, $2, $3, 'Pembayaran terkonfirmasi', $4)`,
+      [id, order.status, newStatus, req.user.id]
+    );
+  }
 
   res.json({ order: updated.rows[0], message: 'Pembayaran berhasil. Order sekarang aktif untuk mover.' });
 }
@@ -481,7 +490,7 @@ async function cancelOrder(req, res) {
   if (order.mover_id) {
     return res.status(400).json({ error: 'Order sudah diambil mover, tidak bisa dibatalkan' });
   }
-  if (!['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status)) {
+  if (!['PENDING_PAYMENT','INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status)) {
     return res.status(400).json({ error: `Order tidak bisa dibatalkan dari status ${order.status}` });
   }
 
@@ -587,6 +596,21 @@ async function updateOrderStatus(req, res) {
     return res.status(400).json({
       error: `Transisi tidak valid: ${order.status} → ${value.status}`,
     });
+  }
+
+  // Mover wajib upload foto pickup & delivery sebelum bisa COMPLETED
+  if (value.status === 'COMPLETED') {
+    const hasPickup   = (order.pickup_photo_urls   || []).length > 0;
+    const hasDelivery = (order.delivery_photo_urls || []).length > 0;
+    if (!hasPickup || !hasDelivery) {
+      const missing = [
+        !hasPickup   && 'foto bukti pickup',
+        !hasDelivery && 'foto bukti delivery',
+      ].filter(Boolean).join(' dan ');
+      return res.status(400).json({
+        error: `Wajib upload ${missing} sebelum menyelesaikan order`,
+      });
+    }
   }
 
   // User sudah bayar di awal — saat COMPLETED, final_price = estimated_price (no haggling)

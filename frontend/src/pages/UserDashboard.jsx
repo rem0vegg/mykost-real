@@ -717,8 +717,8 @@ export default function UserDashboard() {
             <div className="empty-state"><div className="empty-state-icon">🚚</div><p>Belum ada order pindahan.</p></div>
           ) : (
             movingOrders.map((o) => {
-              const canPay    = o.payment_status === 'pending' && !['CANCELLED','INVALID','COMPLETED'].includes(o.status);
-              const canCancel = !o.mover_id && ['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(o.status);
+              const canPay    = o.status === 'PENDING_PAYMENT';
+              const canCancel = !o.mover_id && ['PENDING_PAYMENT','INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(o.status);
               return (
                 <div key={o.id} className="order-card" style={{ borderLeftColor: o.status === 'INVALID' ? '#ef4444' : '#0f3460' }}>
                   <div className="order-card-header">
@@ -730,12 +730,12 @@ export default function UserDashboard() {
                       <div className="order-meta" style={{ fontWeight: 600, color: '#0f3460' }}>
                         Rp {Number(o.estimated_price).toLocaleString('id-ID')}
                       </div>
-                      {o.payment_status === 'pending' && (
+                      {o.status === 'PENDING_PAYMENT' && (
                         <div className="order-meta" style={{ color: '#e94560', fontWeight: 600 }}>
-                          ⏳ Belum dibayar
+                          ⏳ Selesaikan pembayaran untuk lanjut
                         </div>
                       )}
-                      {o.payment_status === 'paid' && !o.mover_id && (
+                      {o.status === 'INSTANT_CONFIRMED' && !o.mover_id && (
                         <div className="order-meta" style={{ color: '#10b981', fontWeight: 600 }}>
                           ✓ Sudah dibayar — menunggu mover
                         </div>

@@ -152,8 +152,8 @@ export default function MovingOrderDetailPage() {
   const canUpdateStatus  = isMover && ['ACCEPTED','ON_GOING'].includes(order.status);
   const canReportMismatch= isMover && ['ACCEPTED','ON_GOING'].includes(order.status);
   const canRebook        = isUser  && order.status === 'INVALID';
-  const canPay           = isUser  && order.payment_status === 'pending' && !['CANCELLED','INVALID','COMPLETED'].includes(order.status);
-  const canCancel        = isUser  && !order.mover_id && ['INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status);
+  const canPay           = isUser  && order.status === 'PENDING_PAYMENT';
+  const canCancel        = isUser  && !order.mover_id && ['PENDING_PAYMENT','INSTANT_CONFIRMED','REVIEW_REQUIRED','DRAFT'].includes(order.status);
 
   const payOrder = async () => {
     try {
@@ -427,6 +427,24 @@ export default function MovingOrderDetailPage() {
           {canUpdateStatus && (
             <div className="card" style={{ marginTop: '1rem' }}>
               <div className="card-title" style={{ marginBottom: '0.75rem' }}>Update Status</div>
+              {order.status === 'ON_GOING' && (() => {
+                const hasPickup   = (order.pickup_photo_urls   || []).length > 0;
+                const hasDelivery = (order.delivery_photo_urls || []).length > 0;
+                if (hasPickup && hasDelivery) return null;
+                const missing = [
+                  !hasPickup   && 'pickup',
+                  !hasDelivery && 'delivery',
+                ].filter(Boolean).join(' & ');
+                return (
+                  <div style={{
+                    background: '#fef3c7', border: '1px solid #fde68a',
+                    borderRadius: 6, padding: '0.6rem 0.75rem', fontSize: '0.85rem',
+                    color: '#92400e', marginBottom: '0.75rem',
+                  }}>
+                    ⚠️ Upload bukti foto <strong>{missing}</strong> dulu di section bukti di atas sebelum bisa menyelesaikan order.
+                  </div>
+                );
+              })()}
               {!showStatusForm ? (
                 <button className="btn btn-primary btn-sm" onClick={() => setShowStatusForm(true)}>Update Status</button>
               ) : (
@@ -437,8 +455,17 @@ export default function MovingOrderDetailPage() {
                     <select className="form-control" value={statusForm.status}
                       onChange={(e) => setStatusForm({ ...statusForm, status: e.target.value })} required>
                       <option value="">Pilih status...</option>
-                      {order.status === 'ACCEPTED' && <option value="ON_GOING">ON_GOING (Mulai angkut)</option>}
-                      {order.status === 'ON_GOING' && <option value="COMPLETED">COMPLETED (Selesai)</option>}
+                      {order.status === 'ACCEPTED' && <option value="ON_GOING">Mulai angkut (ON_GOING)</option>}
+                      {order.status === 'ON_GOING' && (() => {
+                        const hasPickup   = (order.pickup_photo_urls   || []).length > 0;
+                        const hasDelivery = (order.delivery_photo_urls || []).length > 0;
+                        const ready = hasPickup && hasDelivery;
+                        return (
+                          <option value="COMPLETED" disabled={!ready}>
+                            {ready ? 'Selesaikan order (COMPLETED)' : 'Selesaikan order — upload bukti dulu'}
+                          </option>
+                        );
+                      })()}
                     </select>
                   </div>
                   {statusForm.status === 'COMPLETED' && (

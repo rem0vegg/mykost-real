@@ -11,6 +11,7 @@ const STATUS_MAP = {
   // Moving order statuses (v2)
   DRAFT:              { label: 'Draf',                bg: '#f3f4f6', fg: '#374151' },
   SUBMITTED:          { label: 'Terkirim',            bg: '#dbeafe', fg: '#1e40af' },
+  PENDING_PAYMENT:    { label: 'Menunggu Pembayaran', bg: '#fee2e2', fg: '#991b1b' },
   INSTANT_CONFIRMED:  { label: 'Menunggu Mover',      bg: '#fef3c7', fg: '#92400e' },
   REVIEW_REQUIRED:    { label: 'Menunggu Review',     bg: '#fed7aa', fg: '#9a3412' },
   ACCEPTED:           { label: 'Mover Ditugaskan',    bg: '#dbeafe', fg: '#1e40af' },
