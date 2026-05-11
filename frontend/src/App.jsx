@@ -14,6 +14,7 @@ import SurveyOrderDetailPage from './pages/SurveyOrderDetailPage';
 import MovingOrderDetailPage from './pages/MovingOrderDetailPage';
 import CheckoutPage from './pages/CheckoutPage';
 import WalletPage from './pages/WalletPage';
+import MitraRegisterPage from './pages/MitraRegisterPage';
 
 export default function App() {
   const { token, fetchMe } = useAuthStore();
@@ -26,8 +27,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public / auth pages */}
-        <Route path="/login"    element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login"           element={<LoginPage />} />
+        <Route path="/register"        element={<RegisterPage />} />
+        <Route path="/mitra/register"  element={<MitraRegisterPage />} />
 
         {/* Onboarding & apply — protected but no AppShell sidebar */}
         <Route path="/onboarding"     element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />

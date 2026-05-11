@@ -3,8 +3,14 @@ const crypto = require('crypto');
 
 /**
  * Midtrans Snap integration.
- * Menggunakan fetch bawaan Node 18+ untuk memanggil Midtrans Snap API.
+ * Jika MIDTRANS_SERVER_KEY tidak dikonfigurasi, endpoint mengembalikan
+ * dev_mode: true sehingga frontend bisa pakai mock payment (langsung mark paid).
  */
+
+function isMidtransConfigured() {
+  const key = process.env.MIDTRANS_SERVER_KEY || '';
+  return key.length > 10 && !key.startsWith('change');
+}
 
 function midtransHeaders() {
   const key = process.env.MIDTRANS_SERVER_KEY || '';
@@ -20,6 +26,29 @@ function snapBaseUrl() {
   return isProduction
     ? 'https://app.midtrans.com/snap/v1'
     : 'https://app.sandbox.midtrans.com/snap/v1';
+}
+
+/**
+ * Dev fallback: langsung tandai order sebagai paid tanpa payment gateway.
+ * Hanya aktif ketika MIDTRANS_SERVER_KEY tidak dikonfigurasi.
+ */
+async function devMarkPaid(orderType, orderId, userId, amount) {
+  if (orderType === 'survey') {
+    await pool.query(
+      `UPDATE survey_orders SET payment_status = 'paid', status = 'finding_agent', updated_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND payment_status = 'pending'`,
+      [orderId, userId]
+    );
+  } else {
+    await pool.query(
+      `UPDATE moving_orders
+       SET payment_status = 'paid',
+           status = CASE WHEN requires_review THEN 'REVIEW_REQUIRED' ELSE 'INSTANT_CONFIRMED' END,
+           updated_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND payment_status = 'pending'`,
+      [orderId, userId]
+    );
+  }
 }
 
 /**
@@ -48,6 +77,12 @@ async function createSurveySnapToken(req, res) {
 
   const orderRef = `survey-${orderId}`;
   const amount   = parseInt(order.price || 75000);
+
+  // Dev fallback: Midtrans belum dikonfigurasi → langsung mark paid
+  if (!isMidtransConfigured()) {
+    await devMarkPaid('survey', orderId, req.user.id, amount);
+    return res.json({ dev_mode: true, order_ref: orderRef, message: 'Dev mode: order otomatis dibayar (Midtrans belum dikonfigurasi)' });
+  }
 
   // Cek apakah sudah ada snap token aktif
   const existing = await pool.query(
@@ -143,6 +178,12 @@ async function createMovingSnapToken(req, res) {
   const amount   = parseInt(order.estimated_price || order.final_price || 0);
 
   if (amount <= 0) return res.status(400).json({ error: 'Harga order tidak valid' });
+
+  // Dev fallback: Midtrans belum dikonfigurasi → langsung mark paid
+  if (!isMidtransConfigured()) {
+    await devMarkPaid('moving', orderId, req.user.id, amount);
+    return res.json({ dev_mode: true, order_ref: orderRef, message: 'Dev mode: order otomatis dibayar (Midtrans belum dikonfigurasi)' });
+  }
 
   const existing = await pool.query(
     `SELECT snap_token, snap_redirect FROM midtrans_payments WHERE order_ref = $1 AND status = 'pending'`,

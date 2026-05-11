@@ -66,6 +66,15 @@ export default function CheckoutPage() {
         : `/api/payments/moving/${orderId}/snap-token`;
       const { data } = await api.post(endpoint);
 
+      // Dev mode: Midtrans belum dikonfigurasi, order langsung dibayar di backend
+      if (data.dev_mode) {
+        const dest = type === 'survey'
+          ? `/survey-orders/${orderId}`
+          : `/moving-orders/${orderId}`;
+        navigate(dest, { state: { paymentSuccess: true } });
+        return;
+      }
+
       if (!MIDTRANS_CLIENT_KEY || !snapReady) {
         // Fallback: redirect ke Midtrans hosted payment
         window.location.href = data.redirect_url;

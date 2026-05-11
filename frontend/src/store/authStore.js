@@ -40,7 +40,9 @@ const useAuthStore = create((set) => ({
   register: async (fields) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.post('/api/auth/register', fields);
+      // Endpoint /register selalu menghasilkan akun customer
+      const { account_type: _ignored, ...payload } = fields;
+      const { data } = await api.post('/api/auth/register', payload);
       localStorage.setItem('token', data.token);
       set({
         user: data.user,
@@ -48,8 +50,7 @@ const useAuthStore = create((set) => ({
         token: data.token,
         loading: false,
       });
-      // Return redirect hint from server
-      return { user: data.user, redirect: data.redirect || '/onboarding' };
+      return data.user;
     } catch (err) {
       const msg = err.response?.data?.error || 'Pendaftaran gagal';
       set({ error: msg, loading: false });
