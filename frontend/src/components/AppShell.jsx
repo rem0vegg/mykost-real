@@ -9,6 +9,7 @@ export const USER_NAV = [
   { id: 'home',    icon: 'home',      label: 'Beranda',     href: '/dashboard' },
   { id: 'survey',  icon: 'clipboard', label: 'Survei',      href: '/dashboard?tab=survey' },
   { id: 'moving',  icon: 'truck',     label: 'Pindahan',    href: '/dashboard?tab=moving' },
+  { id: 'wallet',  icon: 'wallet',    label: 'Saldo',       href: '/wallet' },
   { id: 'profile', icon: 'user',      label: 'Profil',      href: '/profile' },
 ];
 
@@ -181,7 +182,7 @@ function TopBar({ user, workspace, onWorkspaceChange, capabilities }) {
                   color: 'var(--ink)', borderBottom: '1px solid var(--line)',
                 }}>
                   <Icon name="zap" size={16} />
-                  Tambah Layanan
+                  Menjadi Mitra
                 </Link>
                 <button
                   onClick={handleLogout}

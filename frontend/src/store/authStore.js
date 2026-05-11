@@ -3,7 +3,7 @@ import api from '../services/api';
 
 const useAuthStore = create((set) => ({
   user: null,
-  capabilities: [],   // [{ capability, status, created_at }]
+  capabilities: [],
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
@@ -11,6 +11,11 @@ const useAuthStore = create((set) => ({
   hasCapability: (cap) => {
     const caps = useAuthStore.getState().capabilities || [];
     return caps.some((c) => c.capability === cap && c.status === 'active');
+  },
+
+  // Returns 'customer' | 'mover' | 'surveyor'
+  getAccountType: () => {
+    return useAuthStore.getState().user?.account_type || 'customer';
   },
 
   login: async (email, password) => {
@@ -35,7 +40,9 @@ const useAuthStore = create((set) => ({
   register: async (fields) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.post('/api/auth/register', fields);
+      // Endpoint /register selalu menghasilkan akun customer
+      const { account_type: _ignored, ...payload } = fields;
+      const { data } = await api.post('/api/auth/register', payload);
       localStorage.setItem('token', data.token);
       set({
         user: data.user,

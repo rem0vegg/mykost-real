@@ -3,17 +3,24 @@ const jwt = require('jsonwebtoken');
 const Joi = require('joi');
 const pool = require('../db/pool');
 
-// Universal registration — tidak ada pilihan role.
-// Setiap akun otomatis dapat capability 'customer'; mover/surveyor di-grant via apply.
 const registerSchema = Joi.object({
   email:    Joi.string().email().required(),
   password: Joi.string().min(6).required(),
   name:     Joi.string().min(2).max(80).required(),
-  phone:    Joi.string().pattern(/^\d+$/).min(10).max(15).required(),
+  phone:    Joi.string().pattern(/^\d+$/).min(10).max(13).required(),
+});
+
+// Registrasi mitra — account_type wajib 'mover' atau 'surveyor'.
+const registerMitraSchema = Joi.object({
+  email:        Joi.string().email().required(),
+  password:     Joi.string().min(6).required(),
+  name:         Joi.string().min(2).max(80).required(),
+  phone:        Joi.string().pattern(/^\d+$/).min(10).max(13).required(),
+  account_type: Joi.string().valid('mover', 'surveyor').required(),
 });
 
 const loginSchema = Joi.object({
-  email: Joi.string().email().required(),
+  email:    Joi.string().email().required(),
   password: Joi.string().required(),
 });
 
@@ -33,6 +40,55 @@ async function loadCapabilities(userId) {
   return r.rows;
 }
 
+/**
+ * Shared core: create user row + capabilities + wallet.
+ */
+async function createUserRecord(client, { email, password_hash, name, phone, account_type }) {
+  const legacyRole = account_type === 'mover' ? 'mover'
+    : account_type === 'surveyor' ? 'agent'
+    : 'user';
+
+  const result = await client.query(
+    `INSERT INTO users (email, password_hash, role, name, phone, account_type)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, email, role, name, phone, kota, is_available, account_type, created_at`,
+    [email, password_hash, legacyRole, name, phone, account_type]
+  );
+  const user = result.rows[0];
+
+  // Setiap akun selalu mendapat capability 'customer'
+  await client.query(
+    `INSERT INTO user_capabilities (user_id, capability, status)
+     VALUES ($1, 'customer', 'active') ON CONFLICT DO NOTHING`,
+    [user.id]
+  );
+
+  if (account_type === 'mover') {
+    await client.query(
+      `INSERT INTO user_capabilities (user_id, capability, status)
+       VALUES ($1, 'mover', 'active') ON CONFLICT DO NOTHING`,
+      [user.id]
+    );
+  } else if (account_type === 'surveyor') {
+    await client.query(
+      `INSERT INTO user_capabilities (user_id, capability, status)
+       VALUES ($1, 'surveyor', 'active') ON CONFLICT DO NOTHING`,
+      [user.id]
+    );
+  }
+
+  await client.query(
+    `INSERT INTO user_wallets (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [user.id]
+  );
+
+  return user;
+}
+
+/**
+ * POST /api/auth/register
+ * Registrasi pengguna biasa — selalu jadi customer, langsung ke dashboard.
+ */
 async function register(req, res) {
   const { error, value } = registerSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
@@ -45,30 +101,50 @@ async function register(req, res) {
   }
 
   const password_hash = await bcrypt.hash(password, 10);
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const result = await client.query(
-      `INSERT INTO users (email, password_hash, role, name, phone)
-       VALUES ($1,$2,'user',$3,$4)
-       RETURNING id, email, role, name, phone, kota, is_available, created_at`,
-      [email, password_hash, name, phone]
-    );
-    const user = result.rows[0];
-
-    // Setiap akun baru otomatis dapat capability 'customer'
-    await client.query(
-      `INSERT INTO user_capabilities (user_id, capability, status)
-       VALUES ($1, 'customer', 'active')
-       ON CONFLICT DO NOTHING`,
-      [user.id]
-    );
+    const user = await createUserRecord(client, { email, password_hash, name, phone, account_type: 'customer' });
     await client.query('COMMIT');
 
     const capabilities = await loadCapabilities(user.id);
     const token = signToken(user);
-    res.status(201).json({ user, capabilities, token, needs_onboarding: true });
+    res.status(201).json({ user, capabilities, token });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * POST /api/auth/register-mitra
+ * Registrasi mitra (mover atau surveyor). Setelah berhasil, frontend redirect ke
+ * /apply/mover atau /apply/surveyor untuk melengkapi profil.
+ */
+async function registerMitra(req, res) {
+  const { error, value } = registerMitraSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { email, password, name, phone, account_type } = value;
+
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length > 0) {
+    return res.status(409).json({ error: 'Email sudah terdaftar' });
+  }
+
+  const password_hash = await bcrypt.hash(password, 10);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const user = await createUserRecord(client, { email, password_hash, name, phone, account_type });
+    await client.query('COMMIT');
+
+    const capabilities = await loadCapabilities(user.id);
+    const token = signToken(user);
+    const redirect = account_type === 'mover' ? '/apply/mover' : '/apply/surveyor';
+    res.status(201).json({ user, capabilities, token, redirect });
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -91,6 +167,11 @@ async function login(req, res) {
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Email atau password salah' });
 
+  await pool.query(
+    `INSERT INTO user_wallets (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [user.id]
+  );
+
   const token = signToken(user);
   const { password_hash, ...safeUser } = user;
   const capabilities = await loadCapabilities(user.id);
@@ -99,7 +180,9 @@ async function login(req, res) {
 
 async function me(req, res) {
   const result = await pool.query(
-    'SELECT id, email, role, name, phone, kota, location, avatar_url, is_available, created_at FROM users WHERE id = $1',
+    `SELECT id, email, role, name, phone, kota, location, avatar_url,
+            is_available, account_type, created_at
+     FROM users WHERE id = $1`,
     [req.user.id]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -107,4 +190,4 @@ async function me(req, res) {
   res.json({ user: result.rows[0], capabilities });
 }
 
-module.exports = { register, login, me };
+module.exports = { register, registerMitra, login, me };
