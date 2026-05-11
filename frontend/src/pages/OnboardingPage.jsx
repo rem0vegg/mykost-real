@@ -2,33 +2,33 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import Icon from '../components/Icon';
 
-const INTENTS = [
+const ALL_INTENTS = [
   {
     id: 'customer',
     icon: 'home',
-    title: 'Cari Layanan',
+    title: 'Mulai Gunakan Layanan',
     desc: 'Survei kost dan pindahan tanpa repot. Cari, pesan, lacak — semua dari satu tempat.',
-    cta: 'Mulai cari',
+    cta: 'Buka Dashboard',
     to: '/dashboard',
-    pill: null,
+    allowedFor: ['customer', 'mover', 'surveyor'],
   },
   {
     id: 'mover',
     icon: 'truck',
-    title: 'Jadi Mitra Mover',
-    desc: 'Jalankan layanan pindahan Anda. Atur kendaraan, terima order, dan bangun reputasi di MyKost.',
-    cta: 'Daftar jadi mitra',
+    title: 'Lengkapi Profil Mover',
+    desc: 'Atur kendaraan, area layanan, dan bio agar order pindahan masuk ke akun Anda.',
+    cta: 'Lengkapi profil',
     to: '/apply/mover',
-    pill: null,
+    allowedFor: ['mover'],
   },
   {
     id: 'surveyor',
     icon: 'clipboard',
-    title: 'Jadi Surveyor',
-    desc: 'Bantu calon penghuni mengecek kost secara langsung. Fleksibel, dibayar per kunjungan.',
-    cta: 'Daftar jadi surveyor',
+    title: 'Lengkapi Profil Surveyor',
+    desc: 'Pilih kota dan isi bio. Surveyor di kota Anda akan langsung menerima order.',
+    cta: 'Lengkapi profil',
     to: '/apply/surveyor',
-    pill: null,
+    allowedFor: ['surveyor'],
   },
 ];
 
@@ -36,7 +36,10 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, capabilities } = useAuthStore();
 
+  const accountType = user?.account_type || 'customer';
   const hasCap = (id) => (capabilities || []).some((c) => c.capability === id && c.status === 'active');
+
+  const visibleIntents = ALL_INTENTS.filter((i) => i.allowedFor.includes(accountType));
 
   return (
     <div className="onb-shell">
@@ -45,16 +48,19 @@ export default function OnboardingPage() {
         <h1 className="onb-headline">
           {user?.name ? `Halo, ${user.name.split(' ')[0]}.` : 'Selamat datang.'}
           <br />
-          Apa yang Anda cari hari ini?
+          Apa yang ingin Anda lakukan?
         </h1>
         <p className="onb-subline">
-          Pilih salah satu untuk memulai. Anda bisa aktifkan kemampuan lain kapan saja
-          tanpa membuat akun baru.
+          {accountType === 'customer'
+            ? 'Akun Anda terdaftar sebagai pengguna. Gunakan layanan survei kost dan pindahan.'
+            : accountType === 'mover'
+            ? 'Akun mover Anda sudah aktif. Lengkapi profil untuk mulai menerima order.'
+            : 'Akun surveyor Anda sudah aktif. Lengkapi profil untuk mulai menerima order.'}
         </p>
 
         <div className="onb-grid">
-          {INTENTS.map((intent) => {
-            const active = hasCap(intent.id);
+          {visibleIntents.map((intent) => {
+            const active = hasCap(intent.id === 'customer' ? 'customer' : intent.id);
             return (
               <button
                 key={intent.id}
@@ -74,7 +80,19 @@ export default function OnboardingPage() {
           })}
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+        {accountType === 'customer' && (
+          <div style={{
+            marginTop: '2rem', padding: '14px 18px',
+            background: 'var(--surface-2)', borderRadius: 'var(--r-md)',
+            border: '1px solid var(--line)',
+            fontSize: 13, color: 'var(--ink-soft)', textAlign: 'center',
+          }}>
+            Ingin menjadi mover atau surveyor?{' '}
+            <strong style={{ color: 'var(--ink)' }}>Buat akun baru</strong> dan pilih peran yang sesuai saat mendaftar.
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
           <button
             type="button"
             onClick={() => navigate('/dashboard')}

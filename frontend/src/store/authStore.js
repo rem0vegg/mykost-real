@@ -3,7 +3,7 @@ import api from '../services/api';
 
 const useAuthStore = create((set) => ({
   user: null,
-  capabilities: [],   // [{ capability, status, created_at }]
+  capabilities: [],
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
@@ -11,6 +11,11 @@ const useAuthStore = create((set) => ({
   hasCapability: (cap) => {
     const caps = useAuthStore.getState().capabilities || [];
     return caps.some((c) => c.capability === cap && c.status === 'active');
+  },
+
+  // Returns 'customer' | 'mover' | 'surveyor'
+  getAccountType: () => {
+    return useAuthStore.getState().user?.account_type || 'customer';
   },
 
   login: async (email, password) => {
@@ -43,7 +48,8 @@ const useAuthStore = create((set) => ({
         token: data.token,
         loading: false,
       });
-      return data.user;
+      // Return redirect hint from server
+      return { user: data.user, redirect: data.redirect || '/onboarding' };
     } catch (err) {
       const msg = err.response?.data?.error || 'Pendaftaran gagal';
       set({ error: msg, loading: false });

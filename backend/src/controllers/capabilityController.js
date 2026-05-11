@@ -14,9 +14,13 @@ const surveyorApplySchema = Joi.object({
   bio:  Joi.string().max(500).allow('', null),
 });
 
+async function getAccountType(userId) {
+  const r = await pool.query('SELECT account_type FROM users WHERE id = $1', [userId]);
+  return r.rows[0]?.account_type || 'customer';
+}
+
 /**
  * GET /me/capabilities
- * Daftar capability user yang login + profile data tambahan.
  */
 async function getMyCapabilities(req, res) {
   const caps = await pool.query(
@@ -40,9 +44,16 @@ async function getMyCapabilities(req, res) {
 
 /**
  * POST /me/capabilities/mover
- * Apply menjadi mitra mover. Auto-active (no manual review).
+ * Hanya untuk akun yang mendaftar sebagai 'mover'.
  */
 async function applyMover(req, res) {
+  const accountType = await getAccountType(req.user.id);
+  if (accountType === 'customer') {
+    return res.status(403).json({
+      error: 'Akun pengguna biasa tidak dapat mendaftar sebagai mover. Buat akun baru dan pilih "Mover" saat registrasi.',
+    });
+  }
+
   const { error, value } = moverApplySchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
@@ -80,9 +91,16 @@ async function applyMover(req, res) {
 
 /**
  * POST /me/capabilities/surveyor
- * Apply menjadi surveyor. Auto-active.
+ * Hanya untuk akun yang mendaftar sebagai 'surveyor'.
  */
 async function applySurveyor(req, res) {
+  const accountType = await getAccountType(req.user.id);
+  if (accountType === 'customer') {
+    return res.status(403).json({
+      error: 'Akun pengguna biasa tidak dapat mendaftar sebagai surveyor. Buat akun baru dan pilih "Surveyor" saat registrasi.',
+    });
+  }
+
   const { error, value } = surveyorApplySchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
@@ -107,7 +125,6 @@ async function applySurveyor(req, res) {
       [req.user.id, value.kota, value.bio || null]
     );
 
-    // Backfill kota di users juga (legacy: requireRole agent ngecek users.kota)
     await client.query(
       `UPDATE users SET kota = COALESCE(kota, $1) WHERE id = $2`,
       [value.kota, req.user.id]

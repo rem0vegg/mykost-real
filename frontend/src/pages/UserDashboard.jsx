@@ -515,10 +515,15 @@ export default function UserDashboard() {
                         <Icon name="message" size={14} /> Chat
                       </button>
                     )}
-                    <button className="mk-btn mk-btn-primary mk-btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
-                      {order.status === 'pending_payment' ? (<><Icon name="wallet" size={14} /> Bayar Sekarang</>) : 'Detail'}
-                      {order.status !== 'pending_payment' && <Icon name="chevron-right" size={14} />}
-                    </button>
+                    {order.status === 'pending_payment' ? (
+                      <button className="mk-btn mk-btn-primary mk-btn-sm" onClick={() => navigate(`/checkout/survey/${order.id}`)}>
+                        <Icon name="wallet" size={14} /> Bayar Sekarang
+                      </button>
+                    ) : (
+                      <button className="mk-btn mk-btn-primary mk-btn-sm" onClick={() => navigate(`/survey-orders/${order.id}`)}>
+                        Detail <Icon name="chevron-right" size={14} />
+                      </button>
+                    )}
                   </div>
                 </article>
               );
@@ -858,10 +863,7 @@ export default function UserDashboard() {
                     <div className="mk-row" style={{ gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                       {canPay && (
                         <button className="mk-btn mk-btn-primary mk-btn-sm"
-                          onClick={async () => {
-                            try { await api.post(`/api/moving-orders/${o.id}/pay`); await fetchData(); }
-                            catch (err) { alert(err.response?.data?.error || 'Gagal bayar'); }
-                          }}>
+                          onClick={() => navigate(`/checkout/moving/${o.id}`)}>
                           <Icon name="wallet" size={14} /> Bayar
                         </button>
                       )}

@@ -1,6 +1,7 @@
 const Joi  = require('joi');
 const pool = require('../db/pool');
 const notify = require('../utils/notify');
+const { creditWallet } = require('./walletController');
 const {
   calculatePrice,
   determineRequiresReview,
@@ -507,21 +508,50 @@ async function cancelOrder(req, res) {
     return res.status(400).json({ error: `Order tidak bisa dibatalkan dari status ${order.status}` });
   }
 
-  const updated = await pool.query(
-    `UPDATE moving_orders
-     SET status = 'CANCELLED', updated_at = NOW()
-     WHERE id = $1
-     RETURNING *`,
-    [id]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  await pool.query(
-    `INSERT INTO moving_order_status_history (order_id, from_status, to_status, note, changed_by)
-     VALUES ($1, $2, 'CANCELLED', 'Dibatalkan oleh user', $3)`,
-    [id, order.status, req.user.id]
-  );
+    const updated = await client.query(
+      `UPDATE moving_orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
 
-  res.json({ order: updated.rows[0], message: 'Order berhasil dibatalkan' });
+    await client.query(
+      `INSERT INTO moving_order_status_history (order_id, from_status, to_status, note, changed_by)
+       VALUES ($1, $2, 'CANCELLED', 'Dibatalkan oleh user', $3)`,
+      [id, order.status, req.user.id]
+    );
+
+    // Jika sudah dibayar, kembalikan dana ke saldo digital
+    let refundAmount = 0;
+    if (order.payment_status === 'paid') {
+      refundAmount = parseInt(order.estimated_price || order.final_price || 0);
+      if (refundAmount > 0) {
+        await creditWallet(
+          client, req.user.id, refundAmount,
+          'order_refund', id,
+          `Refund pindahan ${order.vehicle_type} (${order.pickup_location} → ${order.dropoff_location})`
+        );
+        await client.query(
+          `UPDATE moving_orders SET payment_status = 'refunded' WHERE id = $1`,
+          [id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const msg = refundAmount > 0
+      ? `Order berhasil dibatalkan. Dana Rp ${refundAmount.toLocaleString('id-ID')} dikembalikan ke saldo digital.`
+      : 'Order berhasil dibatalkan';
+    res.json({ order: updated.rows[0], message: msg, refund_amount: refundAmount });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 /**

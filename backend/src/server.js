@@ -22,6 +22,8 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/reviews',      require('./routes/reviews'));
 app.use('/api/complaints',   require('./routes/complaints'));
 app.use('/api/me/capabilities', require('./routes/capabilities'));
+app.use('/api/wallet',         require('./routes/wallet'));
+app.use('/api/payments',       require('./routes/payments'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

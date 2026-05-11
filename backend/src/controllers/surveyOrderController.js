@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const notify = require('../utils/notify');
+const { creditWallet } = require('./walletController');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -87,16 +88,38 @@ async function requestRefund(req, res) {
   if (order.user_id !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
   if (order.status !== 'finding_agent') return res.status(400).json({ error: 'Refund hanya bisa diminta saat mencari agent' });
 
-  const updated = await pool.query(
-    `UPDATE survey_orders
-     SET status='refunded', payment_status='refunded', updated_at=CURRENT_TIMESTAMP
-     WHERE id=$1 RETURNING *`,
-    [id]
-  );
-  await addHistory(id, 'refunded', 'Order dibatalkan oleh user. Pembayaran akan dikembalikan.', req.user.id);
-  await notify(req.user.id, 'refunded', 'Refund diproses',
-    `Order "${order.kost_name}" dibatalkan. Dana akan dikembalikan.`, id, 'survey');
-  res.json({ order: updated.rows[0] });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const updated = await client.query(
+      `UPDATE survey_orders
+       SET status='refunded', payment_status='refunded', updated_at=CURRENT_TIMESTAMP
+       WHERE id=$1 RETURNING *`,
+      [id]
+    );
+    await addHistory(id, 'refunded', 'Order dibatalkan oleh user. Dana dikembalikan ke saldo digital.', req.user.id);
+
+    // Kembalikan dana ke saldo digital user
+    const refundAmount = parseInt(order.price || 75000);
+    await creditWallet(
+      client, req.user.id, refundAmount,
+      'order_refund', id,
+      `Refund survei kost "${order.kost_name}"`
+    );
+
+    await client.query('COMMIT');
+
+    await notify(req.user.id, 'refunded', 'Dana dikembalikan ke saldo',
+      `Order "${order.kost_name}" dibatalkan. Dana Rp ${refundAmount.toLocaleString('id-ID')} masuk ke saldo digital.`, id, 'survey');
+
+    res.json({ order: updated.rows[0], refund_amount: refundAmount });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // ─── agent actions ───────────────────────────────────────────────────────────

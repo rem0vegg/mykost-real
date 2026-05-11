@@ -18,7 +18,7 @@ export default function Navbar() {
         {user && (
           <>
             <Link to="/dashboard">Dashboard</Link>
-            <Link to="/onboarding">Tambah Layanan</Link>
+            <Link to="/onboarding">Menjadi Mitra</Link>
             <NotificationBell />
             <Link to="/profile">{user.name}</Link>
             <button onClick={handleLogout}>Logout</button>

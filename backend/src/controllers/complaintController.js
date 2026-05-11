@@ -1,13 +1,14 @@
 const Joi = require('joi');
 const pool = require('../db/pool');
+const { creditWallet } = require('./walletController');
 
 const COMPLAINT_CATEGORIES = [
-  'service_quality',   // Kualitas layanan
-  'late_delivery',     // Keterlambatan
-  'damaged_item',      // Barang rusak
-  'rude_behavior',     // Perilaku tidak sopan
-  'wrong_info',        // Info tidak sesuai
-  'overcharge',        // Biaya tidak wajar
+  'service_quality',
+  'late_delivery',
+  'damaged_item',
+  'rude_behavior',
+  'wrong_info',
+  'overcharge',
   'other',
 ];
 
@@ -18,15 +19,18 @@ const createSchema = Joi.object({
   description: Joi.string().min(10).max(2000).required(),
 });
 
+const resolveSchema = Joi.object({
+  resolution:    Joi.string().min(5).max(1000).required(),
+  refund_amount: Joi.number().integer().min(0).default(0),
+});
+
 /**
  * POST /complaints
- * User mengajukan komplain atas order yang sudah selesai (atau dibatalkan).
  */
 async function createComplaint(req, res) {
   const { error, value } = createSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
-  // Validasi kepemilikan order
   const tableMap = { survey: 'survey_orders', moving: 'moving_orders' };
   const t = tableMap[value.order_type];
   const r = await pool.query(`SELECT user_id, status FROM ${t} WHERE id = $1`, [value.order_id]);
@@ -45,7 +49,6 @@ async function createComplaint(req, res) {
 
 /**
  * GET /complaints/me
- * List komplain milik user yang login.
  */
 async function getMyComplaints(req, res) {
   const result = await pool.query(
@@ -57,7 +60,6 @@ async function getMyComplaints(req, res) {
 
 /**
  * GET /complaints/order/:order_type/:order_id
- * Komplain spesifik untuk satu order.
  */
 async function getOrderComplaints(req, res) {
   const { order_type, order_id } = req.params;
@@ -70,4 +72,53 @@ async function getOrderComplaints(req, res) {
   res.json({ complaints: result.rows });
 }
 
-module.exports = { createComplaint, getMyComplaints, getOrderComplaints, COMPLAINT_CATEGORIES };
+/**
+ * PATCH /complaints/:id/resolve
+ * Admin menyelesaikan komplain; jika ada refund_amount, dana masuk ke wallet user.
+ */
+async function resolveComplaint(req, res) {
+  const { id } = req.params;
+  const { error, value } = resolveSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const complaintR = await pool.query('SELECT * FROM complaints WHERE id = $1', [id]);
+  if (complaintR.rows.length === 0) return res.status(404).json({ error: 'Komplain tidak ditemukan' });
+  const complaint = complaintR.rows[0];
+  if (complaint.status === 'resolved') return res.status(400).json({ error: 'Komplain sudah diselesaikan' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `UPDATE complaints
+       SET status = 'resolved', resolved_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (value.refund_amount > 0) {
+      await creditWallet(
+        client, complaint.user_id, value.refund_amount,
+        'complaint_refund', id,
+        `Penyelesaian komplain #${id.slice(0,8)}: ${value.resolution}`
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({
+      success:       true,
+      refund_amount: value.refund_amount,
+      message:       value.refund_amount > 0
+        ? `Komplain diselesaikan. Dana Rp ${value.refund_amount.toLocaleString('id-ID')} dikembalikan ke saldo user.`
+        : 'Komplain diselesaikan.',
+    });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { createComplaint, getMyComplaints, getOrderComplaints, resolveComplaint, COMPLAINT_CATEGORIES };
