@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
+import useAuthStore from '../store/authStore';
 import Icon from '../components/Icon';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -29,13 +30,76 @@ function StatusPill({ status }) {
   return <span className={cfg.cls}>{cfg.label}</span>;
 }
 
+function StarRating({ rating, count }) {
+  const filled = Math.round(rating || 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 2 }}>
+        {[1,2,3,4,5].map((s) => (
+          <Icon
+            key={s}
+            name="star"
+            size={13}
+            style={{
+              color: s <= filled ? '#f59e0b' : 'var(--line-strong)',
+              fill: s <= filled ? '#f59e0b' : 'none',
+            }}
+          />
+        ))}
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>
+        {rating ? Number(rating).toFixed(1) : '—'}
+      </span>
+      {count > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>({count} ulasan)</span>
+      )}
+    </div>
+  );
+}
+
+function AvailabilityToggle({ isAvailable, onToggle, loading }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={loading}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 14px',
+        border: 'none', borderRadius: 'var(--r-pill)',
+        background: isAvailable ? 'var(--ok-soft)' : 'var(--surface-2)',
+        color: isAvailable ? 'var(--ok)' : 'var(--ink-mute)',
+        cursor: 'pointer', fontFamily: 'var(--font-body)',
+        fontWeight: 700, fontSize: 13,
+        transition: 'all .15s',
+        opacity: loading ? .6 : 1,
+      }}
+    >
+      <div style={{
+        width: 32, height: 18, borderRadius: 9,
+        background: isAvailable ? 'var(--ok)' : 'var(--line-strong)',
+        position: 'relative', transition: 'background .2s',
+        flexShrink: 0,
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 2, left: isAvailable ? 16 : 2,
+          width: 14, height: 14, borderRadius: '50%',
+          background: '#fff',
+          transition: 'left .2s',
+          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+        }} />
+      </div>
+      {isAvailable ? 'Available' : 'Inactive'}
+    </button>
+  );
+}
+
 function JobCard({ order, onAccept, accepting, isMyJob }) {
   const navigate = useNavigate();
   return (
     <article className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="mk-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Route */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="mk-row" style={{ gap: 8 }}>
               <span style={{ width: 8, height: 8, borderRadius: 'var(--r-pill)', background: 'var(--brand)', flexShrink: 0 }} />
@@ -47,7 +111,6 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
               <span className="mk-truncate" style={{ fontSize: 14, fontWeight: 600 }}>{order.dropoff_location}</span>
             </div>
           </div>
-          {/* Meta */}
           <div className="mk-row" style={{ gap: 6, marginTop: 8, fontSize: 12, color: 'var(--ink-mute)', flexWrap: 'wrap' }}>
             <Icon name="truck" size={13} />
             <span>{order.vehicle_type}</span>
@@ -110,6 +173,7 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
 
 export default function MoverDashboard() {
   const navigate = useNavigate();
+  const { user, fetchMe } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const _urlTab = searchParams.get('tab');
   const tab = _urlTab === 'my' ? 'my-jobs' : _urlTab === 'earn' ? 'earnings' : 'available';
@@ -121,10 +185,13 @@ export default function MoverDashboard() {
   const [available, setAvailable] = useState([]);
   const [myJobs, setMyJobs] = useState([]);
   const [earnings, setEarnings] = useState(null);
+  const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
+  const [availToggleLoading, setAvailToggleLoading] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [a, m, e] = await Promise.all([
         api.get('/api/moving-orders/available'),
@@ -132,13 +199,36 @@ export default function MoverDashboard() {
         api.get('/api/moving-orders/earnings'),
       ]);
       setAvailable(a.data.orders);
+      setOffline(a.data.offline || false);
       setMyJobs(m.data.orders);
       setEarnings(e.data);
     } catch {}
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/api/reviews?reviewee_id=${user.id}`)
+      .then(({ data }) => setRatingSummary(data.summary))
+      .catch(() => {});
+  }, [user?.id]);
+
+  const toggleAvailability = async () => {
+    if (!user) return;
+    const newVal = !user.is_available;
+    setAvailToggleLoading(true);
+    try {
+      await api.put('/api/users/availability', { is_available: newVal });
+      await fetchMe();
+      await fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mengubah status');
+    } finally {
+      setAvailToggleLoading(false);
+    }
+  };
 
   const acceptOrder = async (id) => {
     setAccepting(id);
@@ -146,23 +236,62 @@ export default function MoverDashboard() {
       await api.post(`/api/moving-orders/${id}/accept`);
       await fetchData();
       setTab('my-jobs');
-    } catch {}
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mengambil job');
+    }
     setAccepting(null);
   };
 
   const summary = earnings?.summary || {};
+  const isAvailable = user?.is_available !== false;
 
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
   return (
     <div className="mk-page">
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>Mover · JaBoDeTaBek</div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
-          Dashboard Mover
-        </h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>Mover · JaBoDeTaBek</div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
+            Dashboard Mover
+          </h1>
+          {ratingSummary && ratingSummary.count > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <StarRating rating={ratingSummary.average} count={ratingSummary.count} />
+            </div>
+          )}
+        </div>
+        <AvailabilityToggle
+          isAvailable={isAvailable}
+          onToggle={toggleAvailability}
+          loading={availToggleLoading}
+        />
       </div>
+
+      {/* Offline banner */}
+      {offline && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px 18px',
+          background: 'var(--surface-2)', border: '1px solid var(--line-strong)',
+          borderRadius: 'var(--r-md)',
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'var(--line-strong)', color: 'var(--ink-mute)',
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+          }}>
+            <Icon name="moon" size={17} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>Status Inactive</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Anda tidak akan melihat job baru. Aktifkan <strong>Available</strong> untuk mulai mengambil job.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Earnings hero card */}
       <div className="mk-card" style={{
@@ -175,13 +304,22 @@ export default function MoverDashboard() {
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 800, letterSpacing: '-.02em' }}>
           {rp(summary.this_month)}
         </div>
-        <div className="mk-row" style={{ gap: 16, fontSize: 12, opacity: .9 }}>
-          <span className="mk-row" style={{ gap: 4 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12, opacity: .9 }}>
             <Icon name="trending-up" size={14} />
             {summary.completed_count || 0} job selesai
           </span>
-          <span>·</span>
-          <span>{rp(summary.pending_amount)} sedang berjalan</span>
+          <span style={{ fontSize: 12, opacity: .9 }}>·</span>
+          <span style={{ fontSize: 12, opacity: .9 }}>{rp(summary.pending_amount)} sedang berjalan</span>
+          {ratingSummary && ratingSummary.count > 0 && (
+            <>
+              <span style={{ fontSize: 12, opacity: .9 }}>·</span>
+              <span style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12, opacity: .9 }}>
+                <Icon name="star" size={13} style={{ fill: '#fbbf24', color: '#fbbf24' }} />
+                {Number(ratingSummary.average).toFixed(1)} ({ratingSummary.count})
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -189,7 +327,7 @@ export default function MoverDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         <div className="mk-stat">
           <div className="mk-stat-label">Tersedia</div>
-          <div className="mk-stat-value">{available.length}</div>
+          <div className="mk-stat-value">{offline ? '—' : available.length}</div>
           <div className="mk-stat-sub">dalam area</div>
         </div>
         <div className="mk-stat">
@@ -208,7 +346,7 @@ export default function MoverDashboard() {
         <div className="mk-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <div className="mk-tabs">
             {[
-              { id: 'available', label: `Job Tersedia (${available.length})` },
+              { id: 'available', label: `Job Tersedia (${offline ? '—' : available.length})` },
               { id: 'my-jobs',   label: `Job Saya (${myJobs.length})` },
               { id: 'earnings',  label: 'Penghasilan' },
             ].map((t) => (
@@ -221,7 +359,7 @@ export default function MoverDashboard() {
               </button>
             ))}
           </div>
-          {tab === 'available' && (
+          {tab === 'available' && isAvailable && (
             <button className="mk-btn mk-btn-ghost mk-btn-sm">
               <Icon name="filter" size={14} /> Filter
             </button>
@@ -230,7 +368,13 @@ export default function MoverDashboard() {
 
         {tab === 'available' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {available.length === 0 ? (
+            {offline ? (
+              <div className="mk-empty">
+                <div className="mk-empty-icon"><Icon name="moon" size={44} /></div>
+                <div className="mk-empty-title">Status Inactive</div>
+                <div className="mk-empty-sub">Aktifkan status Available di pojok kanan atas untuk melihat job tersedia.</div>
+              </div>
+            ) : available.length === 0 ? (
               <div className="mk-empty">
                 <div className="mk-empty-icon"><Icon name="truck" size={44} /></div>
                 <div className="mk-empty-title">Tidak ada job tersedia</div>
@@ -268,7 +412,6 @@ export default function MoverDashboard() {
 
         {tab === 'earnings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Monthly breakdown */}
             <div className="mk-card" style={{ padding: 20 }}>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, marginBottom: 14 }}>
                 Penghasilan per Bulan
@@ -294,7 +437,6 @@ export default function MoverDashboard() {
               )}
             </div>
 
-            {/* Recent completed */}
             <div className="mk-card" style={{ padding: 20 }}>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, marginBottom: 14 }}>
                 Job Terakhir Selesai

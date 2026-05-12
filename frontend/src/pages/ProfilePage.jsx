@@ -33,6 +33,35 @@ function Field({ label, hint, children }) {
   );
 }
 
+function StarRating({ rating, count }) {
+  const filled = Math.round(rating || 0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 3 }}>
+        {[1,2,3,4,5].map((s) => (
+          <Icon
+            key={s}
+            name="star"
+            size={16}
+            style={{
+              color: s <= filled ? '#f59e0b' : 'var(--line-strong)',
+              fill: s <= filled ? '#f59e0b' : 'none',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--ink)' }}>
+          {rating ? Number(rating).toFixed(1) : '—'}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+          / 5 · {count} ulasan
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { user, fetchMe } = useAuthStore();
   const [activeTab, setActiveTab] = useState('profile');
@@ -44,12 +73,22 @@ export default function ProfilePage() {
   const [pwErr, setPwErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState(null);
 
   useEffect(() => {
     if (user) {
       setForm({ name: user.name || '', phone: user.phone || '', location: user.location || '', kota: user.kota || '' });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const isProvider = user.role === 'agent' || user.role === 'mover';
+    if (!isProvider) return;
+    api.get(`/api/reviews?reviewee_id=${user.id}`)
+      .then(({ data }) => setRatingSummary(data.summary))
+      .catch(() => {});
+  }, [user?.id, user?.role]);
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -83,10 +122,10 @@ export default function ProfilePage() {
 
   const roleLabel = { customer: 'Penyewa', agent: 'Surveyor', mover: 'Mover' }[user.role] || user.role;
   const joined = new Date(user.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  const isProvider = user.role === 'agent' || user.role === 'mover';
 
   return (
     <div className="mk-page">
-      {/* Page header */}
       <div>
         <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>Akun</div>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
@@ -95,7 +134,7 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-        {/* Sidebar tabs */}
+        {/* Sidebar */}
         <div style={{ width: 200, flexShrink: 0 }}>
           <div className="mk-card" style={{ padding: '8px 6px' }}>
             {/* Avatar + name */}
@@ -113,6 +152,21 @@ export default function ProfilePage() {
               <span className="mk-pill mk-pill-info" style={{ marginTop: 5, fontSize: 11 }}>
                 {roleLabel}
               </span>
+
+              {/* Rating for agents/movers */}
+              {isProvider && ratingSummary && ratingSummary.count > 0 && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>
+                    Rating
+                  </div>
+                  <StarRating rating={ratingSummary.average} count={ratingSummary.count} />
+                </div>
+              )}
+              {isProvider && ratingSummary && ratingSummary.count === 0 && (
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--ink-mute)' }}>
+                  Belum ada ulasan
+                </div>
+              )}
             </div>
 
             {/* Tab buttons */}
@@ -137,7 +191,7 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* Account info pill */}
+          {/* Account info */}
           <div style={{ marginTop: 12, padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
             <div style={{ fontSize: 11, color: 'var(--ink-mute)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
               Info Akun
@@ -150,48 +204,76 @@ export default function ProfilePage() {
         {/* Main content */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {activeTab === 'profile' && (
-            <Section title="Informasi Pribadi" sub="Nama dan kontak yang ditampilkan ke mitra.">
-              {msg && <div className="mk-alert mk-alert-ok" style={{ marginBottom: 16 }}>{msg}</div>}
-              {err && <div className="mk-alert mk-alert-err" style={{ marginBottom: 16 }}>{err}</div>}
-              <form onSubmit={saveProfile}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Nama Lengkap">
-                    <input
-                      className="mk-input"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      required
-                    />
-                  </Field>
-                  <Field label="Nomor HP">
-                    <input
-                      className="mk-input"
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="08xxxxxxxxxx"
-                    />
-                  </Field>
+            <>
+              {/* Rating card for providers */}
+              {isProvider && ratingSummary && ratingSummary.count > 0 && (
+                <div className="mk-card" style={{ padding: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
+                        Rating & Ulasan
+                      </div>
+                      <StarRating rating={ratingSummary.average} count={ratingSummary.count} />
+                    </div>
+                    <div style={{
+                      width: 60, height: 60, borderRadius: '50%',
+                      background: 'var(--brand-soft)', color: 'var(--brand)',
+                      display: 'grid', placeItems: 'center',
+                    }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, lineHeight: 1 }}>
+                          {Number(ratingSummary.average).toFixed(1)}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--ink-mute)', marginTop: 1 }}>/ 5.0</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <Field label="Alamat / Lokasi" hint="Digunakan untuk estimasi jarak.">
-                  <input
-                    className="mk-input"
-                    value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
-                    placeholder="Contoh: Jakarta Selatan"
-                  />
-                </Field>
-                {user.role === 'agent' && (
-                  <Field label="Kota Operasional" hint="Order survei dari kota ini akan dikirim ke Anda.">
-                    <KotaSelect value={form.kota} onChange={(kota) => setForm({ ...form, kota })} placeholder="Pilih kota..." />
+              )}
+
+              <Section title="Informasi Pribadi" sub="Nama dan kontak yang ditampilkan ke mitra.">
+                {msg && <div className="mk-alert mk-alert-ok" style={{ marginBottom: 16 }}>{msg}</div>}
+                {err && <div className="mk-alert mk-alert-err" style={{ marginBottom: 16 }}>{err}</div>}
+                <form onSubmit={saveProfile}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <Field label="Nama Lengkap">
+                      <input
+                        className="mk-input"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        required
+                      />
+                    </Field>
+                    <Field label="Nomor HP">
+                      <input
+                        className="mk-input"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        placeholder="08xxxxxxxxxx"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Alamat / Lokasi" hint="Digunakan untuk estimasi jarak.">
+                    <input
+                      className="mk-input"
+                      value={form.location}
+                      onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      placeholder="Contoh: Jakarta Selatan"
+                    />
                   </Field>
-                )}
-                <button className="mk-btn mk-btn-primary" type="submit" disabled={saving} style={{ marginTop: 4 }}>
-                  {saving ? 'Menyimpan...' : (
-                    <><Icon name="check" size={15} /> Simpan Perubahan</>
+                  {user.role === 'agent' && (
+                    <Field label="Kota Operasional" hint="Order survei dari kota ini akan dikirim ke Anda.">
+                      <KotaSelect value={form.kota} onChange={(kota) => setForm({ ...form, kota })} placeholder="Pilih kota..." />
+                    </Field>
                   )}
-                </button>
-              </form>
-            </Section>
+                  <button className="mk-btn mk-btn-primary" type="submit" disabled={saving} style={{ marginTop: 4 }}>
+                    {saving ? 'Menyimpan...' : (
+                      <><Icon name="check" size={15} /> Simpan Perubahan</>
+                    )}
+                  </button>
+                </form>
+              </Section>
+            </>
           )}
 
           {activeTab === 'security' && (

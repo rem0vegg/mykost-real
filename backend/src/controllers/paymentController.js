@@ -1,6 +1,14 @@
 const pool = require('../db/pool');
 const crypto = require('crypto');
 
+const PAYMENT_METHOD_MAP = {
+  bank_transfer: ['bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va'],
+  credit_card:   ['credit_card'],
+  qris:          ['qris'],
+  ewallet:       ['gopay', 'shopeepay'],
+  retail:        ['alfamart', 'indomaret'],
+};
+
 /**
  * Midtrans Snap integration.
  * Jika MIDTRANS_SERVER_KEY tidak dikonfigurasi, endpoint mengembalikan
@@ -97,6 +105,7 @@ async function createSurveySnapToken(req, res) {
     });
   }
 
+  const enabledPayments = PAYMENT_METHOD_MAP[req.body.payment_method];
   const payload = {
     transaction_details: {
       order_id:     orderRef,
@@ -113,6 +122,7 @@ async function createSurveySnapToken(req, res) {
       quantity: 1,
       name:     `Survei Kost - ${order.kost_name}`,
     }],
+    ...(enabledPayments ? { enabled_payments: enabledPayments } : {}),
   };
 
   try {
@@ -198,6 +208,7 @@ async function createMovingSnapToken(req, res) {
   }
 
   const vehicleLabel = { MOTORCYCLE: 'Motor', VAN: 'Van', PICKUP_BOX: 'Pickup Box' }[order.vehicle_type] || order.vehicle_type;
+  const enabledPayments = PAYMENT_METHOD_MAP[req.body.payment_method];
   const payload = {
     transaction_details: {
       order_id:     orderRef,
@@ -214,6 +225,7 @@ async function createMovingSnapToken(req, res) {
       quantity: 1,
       name:     `Pindahan ${vehicleLabel} - ${(order.distance_km || 0)} km`,
     }],
+    ...(enabledPayments ? { enabled_payments: enabledPayments } : {}),
   };
 
   try {

@@ -16,7 +16,7 @@ const changePasswordSchema = Joi.object({
 
 async function getProfile(req, res) {
   const result = await pool.query(
-    'SELECT id, email, role, name, phone, kota, location, avatar_url, created_at FROM users WHERE id = $1',
+    'SELECT id, email, role, name, phone, kota, location, avatar_url, is_available, created_at FROM users WHERE id = $1',
     [req.user.id]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -68,19 +68,35 @@ async function changePassword(req, res) {
 }
 
 async function setAvailability(req, res) {
-  if (req.user.role !== 'agent') return res.status(403).json({ error: 'Hanya agent yang dapat mengubah ketersediaan' });
+  const role = req.user.role;
+  if (role !== 'agent' && role !== 'mover') {
+    return res.status(403).json({ error: 'Hanya agent atau mover yang dapat mengubah ketersediaan' });
+  }
+
   const { is_available } = req.body;
   if (typeof is_available !== 'boolean') return res.status(400).json({ error: 'is_available harus boolean' });
 
   if (!is_available) {
-    const running = await pool.query(
-      "SELECT id FROM survey_orders WHERE agent_id=$1 AND status='assigned'",
-      [req.user.id]
-    );
-    if (running.rows.length > 0) {
-      return res.status(400).json({
-        error: 'Tidak bisa offline saat masih memiliki order yang sedang berjalan. Selesaikan order terlebih dahulu.'
-      });
+    if (role === 'agent') {
+      const running = await pool.query(
+        "SELECT id FROM survey_orders WHERE agent_id=$1 AND status='assigned'",
+        [req.user.id]
+      );
+      if (running.rows.length > 0) {
+        return res.status(400).json({
+          error: 'Tidak bisa Inactive saat masih ada order survei yang sedang berjalan. Selesaikan order terlebih dahulu.'
+        });
+      }
+    } else {
+      const running = await pool.query(
+        "SELECT id FROM moving_orders WHERE mover_id=$1 AND status IN ('ACCEPTED','ON_GOING')",
+        [req.user.id]
+      );
+      if (running.rows.length > 0) {
+        return res.status(400).json({
+          error: 'Tidak bisa Inactive saat masih ada order pindahan yang sedang berjalan. Selesaikan order terlebih dahulu.'
+        });
+      }
     }
   }
 
