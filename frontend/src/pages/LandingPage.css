@@ -106,30 +106,42 @@
 .lp-btn--block { width: 100%; margin-top: 1.5rem; }
 
 .lp-btn--primary {
-  background: var(--brand); color: #fff; border-color: var(--brand);
+  background: var(--brand); color: #fff !important; border-color: var(--brand);
 }
 .lp-btn--primary:hover {
-  background: var(--brand-ink); border-color: var(--brand-ink);
+  background: var(--brand-ink); border-color: var(--brand-ink); color: #fff !important;
   box-shadow: 0 4px 12px rgba(47,107,62,0.3);
 }
 
 .lp-btn--soft {
-  background: var(--brand-soft); color: var(--brand-ink); border-color: transparent;
+  background: var(--brand-soft); color: var(--brand-ink) !important; border-color: transparent;
 }
 .lp-btn--soft:hover { background: #cce0c8; }
 
 .lp-btn--ghost {
-  background: transparent; color: var(--ink); border-color: var(--line-strong);
+  background: transparent; color: var(--ink) !important; border-color: var(--line-strong);
 }
 .lp-btn--ghost:hover { background: var(--surface-2); border-color: var(--line-strong); }
 
-.lp-btn--white { background: #fff; color: var(--brand-ink); border-color: rgba(255,255,255,0.2); }
-.lp-btn--white:hover { background: #f0f0f0; }
+/* White buttons — on dark green hero/worker sections */
+.lp-btn--white {
+  background: #fff; color: var(--brand-ink) !important;
+  border-color: transparent;
+  font-weight: 700;
+}
+.lp-btn--white:hover { background: #edf4eb; }
 
 .lp-btn--white-outline {
-  background: transparent; color: #fff; border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.12);
+  color: #fff !important;
+  border-color: rgba(255,255,255,0.6);
+  font-weight: 600;
 }
-.lp-btn--white-outline:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.7); }
+.lp-btn--white-outline:hover {
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(255,255,255,0.9);
+  color: #fff !important;
+}
 
 /* ── Section typography ── */
 .lp-eyebrow {
@@ -247,8 +259,9 @@
   display: flex; gap: 0.5rem;
 }
 .lp-hero__card-photo {
-  flex: 1; height: 56px; border-radius: var(--r-sm);
+  flex: 1; height: 60px; border-radius: var(--r-sm);
   background: var(--surface-2); border: 1px solid var(--line);
+  object-fit: cover; display: block;
 }
 .lp-hero__card-note { font-size: 0.75rem; color: var(--ink-mute); }
 .lp-hero__card-divider {

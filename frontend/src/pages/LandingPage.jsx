@@ -70,9 +70,9 @@ export default function LandingPage() {
               <div className="lp-hero__card-loc">📍 Jl. Margonda Raya No. 41, Beji</div>
             </div>
             <div className="lp-hero__card-photos">
-              <div className="lp-hero__card-photo" />
-              <div className="lp-hero__card-photo" />
-              <div className="lp-hero__card-photo" />
+              <img className="lp-hero__card-photo" src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=300&h=80&fit=crop&auto=format" alt="Kamar kost" />
+              <img className="lp-hero__card-photo" src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=80&fit=crop&auto=format" alt="Fasilitas kost" />
+              <img className="lp-hero__card-photo" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300&h=80&fit=crop&auto=format" alt="Area kost" />
             </div>
             <div className="lp-hero__card-note">Laporan diterima · 14 foto oleh Andini P.</div>
 
