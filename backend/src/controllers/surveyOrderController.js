@@ -161,7 +161,14 @@ async function acceptOrder(req, res) {
   const { id } = req.params;
   const agentCheck = await pool.query('SELECT is_available FROM users WHERE id=$1', [req.user.id]);
   if (!agentCheck.rows[0]?.is_available) {
-    return res.status(400).json({ error: 'Anda sedang offline. Set status Online di Profil terlebih dahulu.' });
+    return res.status(400).json({ error: 'Anda sedang Inactive. Set status Available untuk menerima order.' });
+  }
+  const activeJob = await pool.query(
+    "SELECT id FROM survey_orders WHERE agent_id=$1 AND status='assigned'",
+    [req.user.id]
+  );
+  if (activeJob.rows.length > 0) {
+    return res.status(400).json({ error: 'Anda sedang bertugas. Selesaikan order aktif terlebih dahulu sebelum menerima order baru.' });
   }
   // Atomic update: only succeeds if still finding_agent
   const updated = await pool.query(
