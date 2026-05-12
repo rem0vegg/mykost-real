@@ -4,49 +4,93 @@ import './LandingPage.css';
 export default function LandingPage() {
   return (
     <div className="lp">
-      {/* ── Navbar ── */}
+      {/* ── Nav ── */}
       <nav className="lp-nav">
-        <span className="lp-nav__brand">MyKost</span>
+        <div className="lp-nav__brand">
+          <div className="lp-nav__brand-icon">MK</div>
+          MyKost
+        </div>
         <div className="lp-nav__links">
+          <a href="#services">Layanan</a>
           <Link to="/login">Masuk</Link>
-          <Link to="/register" className="lp-btn lp-btn--sm">Daftar Gratis</Link>
+          <Link to="/register" className="lp-btn lp-btn--primary lp-btn--sm">Daftar Gratis</Link>
         </div>
       </nav>
 
       {/* ── Hero ── */}
       <section className="lp-hero">
-        <div className="lp-hero__inner">
-          <span className="lp-eyebrow">Survey kost &amp; jasa pindah — satu platform</span>
-          <h1 className="lp-hero__h1">
-            Jangan bayar kost yang<br />
-            belum kamu lihat sendiri.
-          </h1>
-          <p className="lp-hero__sub">
-            Kami kirim surveyor ke lokasi — kamu dapat laporan lengkap,
-            foto asli, dan kondisi nyata <em>sebelum</em> kamu transfer DP.
-            No more kejutan pas udah masuk.
-          </p>
-          <div className="lp-hero__cta">
-            <Link to="/register" className="lp-btn lp-btn--primary">Mulai Survey Kost</Link>
-            <a href="#services" className="lp-btn lp-btn--ghost">Lihat Semua Layanan</a>
+        {/* Left — copy */}
+        <div className="lp-hero__left">
+          <div className="lp-hero__logo">
+            <div className="lp-hero__logo-icon">MK</div>
+            MyKost
+          </div>
+
+          <div className="lp-hero__copy">
+            <span className="lp-eyebrow lp-eyebrow--light">Survey kost &amp; jasa pindahan</span>
+            <h1 className="lp-hero__h1">
+              Jangan bayar kost<br />
+              yang belum kamu<br />
+              lihat sendiri.
+            </h1>
+            <p className="lp-hero__sub">
+              Surveyor kami cek langsung ke lokasi — kamu dapat laporan lengkap,
+              foto asli, dan kondisi nyata <em>sebelum</em> transfer DP.
+              No more kejutan pas udah masuk.
+            </p>
+            <div className="lp-hero__cta">
+              <Link to="/register" className="lp-btn lp-btn--white">Mulai Survey Kost</Link>
+              <a href="#services" className="lp-btn lp-btn--white-outline">Lihat Semua Layanan</a>
+            </div>
+          </div>
+
+          <div>
+            <div className="lp-hero__trust">
+              {[
+                ['🛡', 'Pembayaran aman, refund kalau surveyor tidak datang'],
+                ['⭐', 'Rating mover & surveyor terverifikasi'],
+                ['📊', 'Estimasi harga otomatis sebelum order'],
+              ].map(([icon, text]) => (
+                <div key={text} className="lp-hero__trust-item">
+                  <div className="lp-hero__trust-icon">{icon}</div>
+                  {text}
+                </div>
+              ))}
+            </div>
+            <p className="lp-hero__footer">© 2025 MyKost · Indonesia</p>
           </div>
         </div>
-        <div className="lp-hero__visual" aria-hidden="true">
-          <div className="lp-mockup">
-            <div className="lp-mockup__bar" />
-            <div className="lp-mockup__card">
-              <span className="lp-mockup__label">Survey selesai ✓</span>
-              <span className="lp-mockup__loc">📍 Kost Melati, Depok</span>
-              <div className="lp-mockup__photos">
-                {[1, 2, 3].map(n => <div key={n} className="lp-mockup__photo" />)}
+
+        {/* Right — mockup card */}
+        <div className="lp-hero__right">
+          <div className="lp-hero__card">
+            <div>
+              <div className="lp-hero__card-label">Survey selesai ✓</div>
+              <div className="lp-hero__card-title">Kost Melati, Depok</div>
+              <div className="lp-hero__card-loc">📍 Jl. Margonda Raya No. 41, Beji</div>
+            </div>
+            <div className="lp-hero__card-photos">
+              <div className="lp-hero__card-photo" />
+              <div className="lp-hero__card-photo" />
+              <div className="lp-hero__card-photo" />
+            </div>
+            <div className="lp-hero__card-note">Laporan diterima · 14 foto oleh Andini P.</div>
+
+            <div className="lp-hero__card-divider" />
+
+            <div className="lp-hero__card-row">
+              <div>
+                <div className="lp-hero__card-label" style={{ marginBottom: 2 }}>Estimasi pindahan</div>
+                <div className="lp-hero__card-price">Rp 185.000</div>
               </div>
-              <span className="lp-mockup__status">Laporan diterima — 14 foto</span>
+              <div className="lp-hero__card-detail" style={{ textAlign: 'right' }}>
+                Van · 12 km<br />door-to-door
+              </div>
             </div>
-            <div className="lp-mockup__card lp-mockup__card--sm">
-              <span className="lp-mockup__label">Estimasi pindahan</span>
-              <span className="lp-mockup__price">Rp 185.000</span>
-              <span className="lp-mockup__note">Van · 12 km · door-to-door</span>
-            </div>
+
+            <Link to="/register" className="lp-btn lp-btn--primary" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
+              Mulai sekarang →
+            </Link>
           </div>
         </div>
       </section>
@@ -54,10 +98,8 @@ export default function LandingPage() {
       {/* ── Pain points ── */}
       <section className="lp-pain">
         <div className="lp-container">
-          <h2 className="lp-section-title">Tau rasanya gak?</h2>
-          <p className="lp-section-sub">
-            Kalau kamu pernah ngalamin salah satu ini, kamu ada di tempat yang tepat.
-          </p>
+          <span className="lp-eyebrow">Tau rasanya gak?</span>
+          <h2 className="lp-section-title">Kalau pernah ngalamin ini,<br />kamu di tempat yang tepat.</h2>
           <div className="lp-pain__grid">
             {[
               { icon: '😩', text: 'Kost di foto kelihatan oke, dateng langsung — zonk.' },
@@ -66,7 +108,7 @@ export default function LandingPage() {
               { icon: '📦', text: 'Gak tau barang kamu aman sampai atau enggak.' },
             ].map(({ icon, text }) => (
               <div key={text} className="lp-pain__item">
-                <span className="lp-pain__icon">{icon}</span>
+                <div className="lp-pain__icon">{icon}</div>
                 <p>{text}</p>
               </div>
             ))}
@@ -77,8 +119,8 @@ export default function LandingPage() {
       {/* ── How it works ── */}
       <section className="lp-how">
         <div className="lp-container">
-          <h2 className="lp-section-title">Caranya simpel banget</h2>
-          <p className="lp-section-sub">Tiga langkah dan kamu beres.</p>
+          <span className="lp-eyebrow">Cara pakainya</span>
+          <h2 className="lp-section-title">Tiga langkah dan kamu beres.</h2>
           <div className="lp-how__steps">
             {[
               {
@@ -89,16 +131,16 @@ export default function LandingPage() {
               {
                 num: '02',
                 title: 'Kami match kamu',
-                desc: 'Surveyor atau mover terverifikasi langsung melihat ordermu dan siap bergerak.',
+                desc: 'Surveyor atau mover terverifikasi melihat ordermu dan siap bergerak.',
               },
               {
                 num: '03',
                 title: 'Done, tenang',
-                desc: 'Kamu dapat laporan lengkap atau bukti foto delivery. Harga sudah fix dari awal.',
+                desc: 'Kamu dapat laporan lengkap atau bukti foto delivery. Harga fix dari awal.',
               },
             ].map(({ num, title, desc }) => (
               <div key={num} className="lp-how__step">
-                <span className="lp-how__num">{num}</span>
+                <div className="lp-how__num">{num}</div>
                 <h3 className="lp-how__step-title">{title}</h3>
                 <p className="lp-how__step-desc">{desc}</p>
               </div>
@@ -110,7 +152,8 @@ export default function LandingPage() {
       {/* ── Services ── */}
       <section className="lp-services" id="services">
         <div className="lp-container">
-          <h2 className="lp-section-title">Dua layanan, satu platform</h2>
+          <span className="lp-eyebrow">Layanan kami</span>
+          <h2 className="lp-section-title">Dua layanan, satu platform.</h2>
           <p className="lp-section-sub">
             Mau cek kost dulu atau udah waktunya pindah? Kita cover dua-duanya.
           </p>
@@ -120,10 +163,10 @@ export default function LandingPage() {
               <h3 className="lp-service-card__title">Survey Kost</h3>
               <p className="lp-service-card__tagline">Sebelum kamu nyesel bayar DP.</p>
               <ul className="lp-service-card__list">
-                <li>Surveyor kami cek kondisi kamar, fasilitas, dan area sekitar</li>
-                <li>Kamu terima laporan + foto real bukan foto marketing</li>
-                <li>Harga transparan mulai <strong>Rp 75.000</strong></li>
-                <li>Bisa request kapan aja, dari mana aja</li>
+                <li>Surveyor cek kondisi kamar, fasilitas, dan area sekitar</li>
+                <li>Kamu terima laporan lengkap + foto real, bukan foto marketing</li>
+                <li>Harga transparan — mulai dari <strong>Rp 75.000</strong></li>
+                <li>Request kapan aja, dari mana aja</li>
               </ul>
               <Link to="/register" className="lp-btn lp-btn--primary lp-btn--block">
                 Request Survey Sekarang
@@ -138,7 +181,7 @@ export default function LandingPage() {
                 <li>Pilih kendaraan: motor, van, atau pickup box sesuai kebutuhan</li>
                 <li>Harga kalkulasi otomatis — gak ada biaya surprise di tengah jalan</li>
                 <li>Bukti foto kondisi barang saat pickup <em>dan</em> delivery</li>
-                <li>Add-on: door-to-door, extra helper, atau round trip</li>
+                <li>Add-on: door-to-door, extra helper, round trip</li>
               </ul>
               <Link to="/register" className="lp-btn lp-btn--primary lp-btn--block">
                 Hitung Estimasi Pindahan
@@ -159,18 +202,19 @@ export default function LandingPage() {
               </h2>
               <p className="lp-worker__sub">
                 Gak perlu tunggu klien datang sendiri. Order masuk ke dashboard kamu —
-                kamu pilih yang sesuai jadwal, kamu ambil, kamu selesaikan.
+                pilih yang sesuai jadwal, ambil, selesaikan.
               </p>
               <ul className="lp-worker__perks">
-                <li>✓ Pilih order sesuai jadwalmu sendiri</li>
-                <li>✓ Dashboard penghasilan real-time</li>
-                <li>✓ Gak ada biaya daftar, langsung bisa kerja</li>
+                <li>Pilih order sesuai jadwalmu sendiri</li>
+                <li>Dashboard penghasilan real-time</li>
+                <li>Gak ada biaya daftar, langsung bisa kerja</li>
               </ul>
               <div className="lp-worker__cta">
                 <Link to="/register" className="lp-btn lp-btn--white">Daftar Jadi Mover</Link>
                 <Link to="/register" className="lp-btn lp-btn--white-outline">Daftar Jadi Surveyor</Link>
               </div>
             </div>
+
             <div className="lp-worker__stats">
               <div className="lp-stat">
                 <span className="lp-stat__val">Rp 75rb</span>
@@ -191,8 +235,9 @@ export default function LandingPage() {
 
       {/* ── Final CTA ── */}
       <section className="lp-cta">
-        <div className="lp-container lp-cta__inner">
-          <h2 className="lp-cta__title">Yuk, mulai sekarang.</h2>
+        <div className="lp-cta__inner">
+          <span className="lp-eyebrow">Mulai sekarang</span>
+          <h2 className="lp-cta__title">Yuk, coba dulu.</h2>
           <p className="lp-cta__sub">
             Daftar gratis, langsung bisa request survey atau hitung estimasi pindahan.
             Gak ada yang perlu di-install.
@@ -208,9 +253,12 @@ export default function LandingPage() {
 
       {/* ── Footer ── */}
       <footer className="lp-footer">
-        <div className="lp-container lp-footer__inner">
-          <span className="lp-footer__brand">MyKost</span>
-          <span className="lp-footer__copy">© 2025 MyKost. Platform kost &amp; pindahan Indonesia.</span>
+        <div className="lp-footer__inner">
+          <div className="lp-footer__brand">
+            <div className="lp-footer__brand-dot" />
+            MyKost
+          </div>
+          <span className="lp-footer__copy">© 2025 MyKost · Platform kost &amp; pindahan Indonesia.</span>
         </div>
       </footer>
     </div>
