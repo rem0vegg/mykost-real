@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import AppShell from './components/AppShell';
 import ProtectedRoute from './components/ProtectedRoute';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import OnboardingPage from './pages/OnboardingPage';
@@ -26,6 +27,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Landing page — redirects to dashboard when logged in */}
+        <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+
         {/* Public / auth pages */}
         <Route path="/login"           element={<LoginPage />} />
         <Route path="/register"        element={<RegisterPage />} />
@@ -48,7 +52,7 @@ export default function App() {
           <Route path="/moving-orders/:id"    element={<MovingOrderDetailPage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/'} replace />} />
       </Routes>
     </BrowserRouter>
   );
