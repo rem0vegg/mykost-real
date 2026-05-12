@@ -438,6 +438,11 @@ async function getOrderById(req, res) {
  * REVIEW_REQUIRED hanya bisa diambil setelah admin approve → jadi INSTANT_CONFIRMED.
  */
 async function getAvailableOrders(req, res) {
+  const moverRow = await pool.query('SELECT is_available FROM users WHERE id=$1', [req.user.id]);
+  if (!moverRow.rows[0]?.is_available) {
+    return res.json({ orders: [], offline: true });
+  }
+
   const result = await pool.query(
     `SELECT mo.*, u.name AS user_name, u.phone AS user_phone
      FROM moving_orders mo
@@ -575,6 +580,11 @@ async function getMoverOrders(req, res) {
  */
 async function acceptOrder(req, res) {
   const { id } = req.params;
+
+  const moverCheck = await pool.query('SELECT is_available FROM users WHERE id=$1', [req.user.id]);
+  if (!moverCheck.rows[0]?.is_available) {
+    return res.status(400).json({ error: 'Anda sedang Inactive. Set status Available untuk mengambil order.' });
+  }
 
   const updated = await pool.query(
     `UPDATE moving_orders

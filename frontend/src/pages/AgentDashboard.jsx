@@ -1,10 +1,74 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import Icon from '../components/Icon';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+function StarRating({ rating, count }) {
+  const filled = Math.round(rating || 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 2 }}>
+        {[1,2,3,4,5].map((s) => (
+          <Icon
+            key={s}
+            name="star"
+            size={13}
+            style={{
+              color: s <= filled ? '#f59e0b' : 'var(--line-strong)',
+              fill: s <= filled ? '#f59e0b' : 'none',
+            }}
+          />
+        ))}
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>
+        {rating ? Number(rating).toFixed(1) : '—'}
+      </span>
+      {count > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>({count} ulasan)</span>
+      )}
+    </div>
+  );
+}
+
+function AvailabilityToggle({ isAvailable, onToggle, loading }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={loading}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 14px',
+        border: 'none', borderRadius: 'var(--r-pill)',
+        background: isAvailable ? 'var(--ok-soft)' : 'var(--surface-2)',
+        color: isAvailable ? 'var(--ok)' : 'var(--ink-mute)',
+        cursor: 'pointer', fontFamily: 'var(--font-body)',
+        fontWeight: 700, fontSize: 13,
+        transition: 'all .15s',
+        opacity: loading ? .6 : 1,
+      }}
+    >
+      <div style={{
+        width: 32, height: 18, borderRadius: 9,
+        background: isAvailable ? 'var(--ok)' : 'var(--line-strong)',
+        position: 'relative', transition: 'background .2s',
+        flexShrink: 0,
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 2, left: isAvailable ? 16 : 2,
+          width: 14, height: 14, borderRadius: '50%',
+          background: '#fff',
+          transition: 'left .2s',
+          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+        }} />
+      </div>
+      {isAvailable ? 'Available' : 'Inactive'}
+    </button>
+  );
+}
 
 function StatusPill({ status }) {
   const MAP = {
@@ -97,7 +161,7 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
 
 export default function AgentDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, fetchMe } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const _urlTab = searchParams.get('tab');
   const tab = _urlTab === 'my' ? 'my-orders' : _urlTab === 'earn' ? 'commissions' : 'available';
@@ -110,10 +174,13 @@ export default function AgentDashboard() {
   const [myOrders, setMyOrders] = useState([]);
   const [commissions, setCommissions] = useState([]);
   const [noKota, setNoKota] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
+  const [availToggleLoading, setAvailToggleLoading] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [a, m, c] = await Promise.all([
         api.get('/api/survey-orders/available'),
@@ -122,13 +189,36 @@ export default function AgentDashboard() {
       ]);
       setAvailable(a.data.orders);
       setNoKota(a.data.noKota || false);
+      setOffline(a.data.offline || false);
       setMyOrders(m.data.orders);
       setCommissions(c.data.list || []);
     } catch {}
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/api/reviews?reviewee_id=${user.id}`)
+      .then(({ data }) => setRatingSummary(data.summary))
+      .catch(() => {});
+  }, [user?.id]);
+
+  const toggleAvailability = async () => {
+    if (!user) return;
+    const newVal = !user.is_available;
+    setAvailToggleLoading(true);
+    try {
+      await api.put('/api/users/availability', { is_available: newVal });
+      await fetchMe();
+      await fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mengubah status');
+    } finally {
+      setAvailToggleLoading(false);
+    }
+  };
 
   const acceptOrder = async (orderId) => {
     setAccepting(orderId);
@@ -146,19 +236,32 @@ export default function AgentDashboard() {
   const activeCount  = myOrders.filter((o) => o.status === 'assigned').length;
   const doneCount    = myOrders.filter((o) => o.status === 'completed').length;
   const totalComm    = commissions.reduce((s, c) => s + (c.amount || 0), 0);
+  const isAvailable  = user?.is_available !== false;
 
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
   return (
     <div className="mk-page">
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>
-          Surveyor{user?.kota ? ` · ${user.kota}` : ''}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--ink-mute)', fontWeight: 500 }}>
+            Surveyor{user?.kota ? ` · ${user.kota}` : ''}
+          </div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
+            Hi, {user?.name?.split(' ')[0] || 'Surveyor'}
+          </h1>
+          {ratingSummary && ratingSummary.count > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <StarRating rating={ratingSummary.average} count={ratingSummary.count} />
+            </div>
+          )}
         </div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, margin: '4px 0 0', letterSpacing: '-.02em' }}>
-          Hi, {user?.name?.split(' ')[0] || 'Surveyor'}
-        </h1>
+        <AvailabilityToggle
+          isAvailable={isAvailable}
+          onToggle={toggleAvailability}
+          loading={availToggleLoading}
+        />
       </div>
 
       {/* Kota warning */}
@@ -175,11 +278,35 @@ export default function AgentDashboard() {
         </div>
       )}
 
+      {/* Offline banner */}
+      {offline && !noKota && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px 18px',
+          background: 'var(--surface-2)', border: '1px solid var(--line-strong)',
+          borderRadius: 'var(--r-md)',
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'var(--line-strong)', color: 'var(--ink-mute)',
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+          }}>
+            <Icon name="moon" size={17} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>Status Inactive</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Anda tidak akan menerima order baru. Aktifkan <strong>Available</strong> untuk mulai menerima order.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         <div className="mk-stat">
           <div className="mk-stat-label">Tersedia</div>
-          <div className="mk-stat-value">{available.length}</div>
+          <div className="mk-stat-value">{offline ? '—' : available.length}</div>
           <div className="mk-stat-sub">di {user?.kota || 'kotamu'}</div>
         </div>
         <div className="mk-stat">
@@ -199,7 +326,7 @@ export default function AgentDashboard() {
         <div className="mk-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <div className="mk-tabs">
             {[
-              { id: 'available', label: `Tersedia (${available.length})` },
+              { id: 'available', label: `Tersedia (${offline ? '—' : available.length})` },
               { id: 'my-orders', label: `Pekerjaan Saya (${myOrders.length})` },
               { id: 'commissions', label: 'Komisi' },
             ].map((t) => (
@@ -212,7 +339,7 @@ export default function AgentDashboard() {
               </button>
             ))}
           </div>
-          {tab === 'available' && (
+          {tab === 'available' && isAvailable && (
             <button className="mk-btn mk-btn-ghost mk-btn-sm">
               <Icon name="filter" size={14} /> Filter
             </button>
@@ -222,29 +349,37 @@ export default function AgentDashboard() {
         {/* Available orders */}
         {tab === 'available' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {!noKota && user?.kota && (
-              <p style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-                Menampilkan order di area: <strong style={{ color: 'var(--ink)' }}>{user.kota}</strong>
-              </p>
-            )}
-            {available.length === 0 && !noKota ? (
+            {offline ? (
               <div className="mk-empty">
-                <div className="mk-empty-icon"><Icon name="search" size={44} /></div>
-                <div className="mk-empty-title">Tidak ada order tersedia</div>
-                <div className="mk-empty-sub">Cek kembali nanti atau update kota di profil Anda.</div>
+                <div className="mk-empty-icon"><Icon name="moon" size={44} /></div>
+                <div className="mk-empty-title">Status Inactive</div>
+                <div className="mk-empty-sub">Aktifkan status Available di pojok kanan atas untuk melihat order.</div>
               </div>
-            ) : (
-              available.map((order) => (
-                <JobCard
-                  key={order.id}
-                  order={order}
-                  onAccept={acceptOrder}
-                  accepting={accepting}
-                  onView={(id) => navigate(`/survey-orders/${id}`)}
-                  isMyOrder={false}
-                />
-              ))
-            )}
+            ) : !noKota && user?.kota ? (
+              <>
+                <p style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                  Menampilkan order di area: <strong style={{ color: 'var(--ink)' }}>{user.kota}</strong>
+                </p>
+                {available.length === 0 ? (
+                  <div className="mk-empty">
+                    <div className="mk-empty-icon"><Icon name="search" size={44} /></div>
+                    <div className="mk-empty-title">Tidak ada order tersedia</div>
+                    <div className="mk-empty-sub">Cek kembali nanti atau update kota di profil Anda.</div>
+                  </div>
+                ) : (
+                  available.map((order) => (
+                    <JobCard
+                      key={order.id}
+                      order={order}
+                      onAccept={acceptOrder}
+                      accepting={accepting}
+                      onView={(id) => navigate(`/survey-orders/${id}`)}
+                      isMyOrder={false}
+                    />
+                  ))
+                )}
+              </>
+            ) : null}
           </div>
         )}
 
@@ -275,7 +410,6 @@ export default function AgentDashboard() {
         {/* Commissions */}
         {tab === 'commissions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Earnings summary card */}
             <div className="mk-card" style={{
               padding: 20, background: 'var(--brand)', border: 'none', color: '#fff',
             }}>
@@ -285,6 +419,14 @@ export default function AgentDashboard() {
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 800, letterSpacing: '-.02em' }}>
                 {rp(totalComm)}
               </div>
+              {ratingSummary && ratingSummary.count > 0 && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, opacity: .9 }}>
+                  <Icon name="star" size={13} style={{ fill: '#fbbf24', color: '#fbbf24' }} />
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>
+                    {Number(ratingSummary.average).toFixed(1)} · {ratingSummary.count} ulasan
+                  </span>
+                </div>
+              )}
             </div>
 
             {commissions.length === 0 ? (
