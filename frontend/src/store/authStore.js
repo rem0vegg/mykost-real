@@ -3,19 +3,35 @@ import api from '../services/api';
 
 const useAuthStore = create((set) => ({
   user: null,
+  capabilities: [],
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
+
+  hasCapability: (cap) => {
+    const caps = useAuthStore.getState().capabilities || [];
+    return caps.some((c) => c.capability === cap && c.status === 'active');
+  },
+
+  // Returns 'customer' | 'mover' | 'surveyor'
+  getAccountType: () => {
+    return useAuthStore.getState().user?.account_type || 'customer';
+  },
 
   login: async (email, password) => {
     set({ loading: true, error: null });
     try {
       const { data } = await api.post('/api/auth/login', { email, password });
       localStorage.setItem('token', data.token);
-      set({ user: data.user, token: data.token, loading: false });
+      set({
+        user: data.user,
+        capabilities: data.capabilities || [],
+        token: data.token,
+        loading: false,
+      });
       return data.user;
     } catch (err) {
-      const msg = err.response?.data?.error || 'Login failed';
+      const msg = err.response?.data?.error || 'Login gagal';
       set({ error: msg, loading: false });
       throw new Error(msg);
     }
@@ -24,12 +40,19 @@ const useAuthStore = create((set) => ({
   register: async (fields) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.post('/api/auth/register', fields);
+      // Endpoint /register selalu menghasilkan akun customer
+      const { account_type: _ignored, ...payload } = fields;
+      const { data } = await api.post('/api/auth/register', payload);
       localStorage.setItem('token', data.token);
-      set({ user: data.user, token: data.token, loading: false });
+      set({
+        user: data.user,
+        capabilities: data.capabilities || [],
+        token: data.token,
+        loading: false,
+      });
       return data.user;
     } catch (err) {
-      const msg = err.response?.data?.error || 'Registration failed';
+      const msg = err.response?.data?.error || 'Pendaftaran gagal';
       set({ error: msg, loading: false });
       throw new Error(msg);
     }
@@ -38,16 +61,16 @@ const useAuthStore = create((set) => ({
   fetchMe: async () => {
     try {
       const { data } = await api.get('/api/auth/me');
-      set({ user: data.user });
+      set({ user: data.user, capabilities: data.capabilities || [] });
     } catch {
-      set({ user: null, token: null });
+      set({ user: null, capabilities: [], token: null });
       localStorage.removeItem('token');
     }
   },
 
   logout: () => {
     localStorage.removeItem('token');
-    set({ user: null, token: null });
+    set({ user: null, capabilities: [], token: null });
   },
 
   clearError: () => set({ error: null }),

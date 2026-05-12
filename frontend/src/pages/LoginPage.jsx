@@ -12,75 +12,84 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const user = await login(form.email, form.password);
+      await login(form.email, form.password);
       navigate('/dashboard');
     } catch {}
   };
 
   return (
-    <div className="auth-wrapper">
-      <div className="auth-box">
-        <div className="auth-title">Welcome back</div>
-        <div className="auth-subtitle">Sign in to your MyKost account</div>
-
-        {error && <div className="alert alert-error">{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Email</label>
-            <input
-              className="form-control"
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input
-              className="form-control"
-              type="password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-              required
-            />
-          </div>
-          <button className="btn btn-primary btn-full" type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <hr className="divider" />
-
-        <div style={{ textAlign: 'center', fontSize: '0.88rem', color: '#6b7280' }}>
-          Quick test logins:
+    <div className="auth-shell">
+      <aside className="auth-shell-hero">
+        <div>
+          <div className="hero-brand">MyKost</div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-          {[
-            { email: 'user@test.com', label: 'User' },
-            { email: 'agent@test.com', label: 'Agent' },
-            { email: 'mover@test.com', label: 'Mover' },
-          ].map(({ email, label }) => (
-            <button
-              key={email}
-              className="btn btn-outline btn-sm"
-              style={{ flex: 1 }}
-              onClick={() => setForm({ email, password: 'password123' })}
-              type="button"
-            >
-              {label}
+        <div>
+          <h1>Hidup di kota baru, dimulai dari sini.</h1>
+          <p>
+            Satu platform untuk cari kost, atur survei, sampai layanan pindahan.
+            Semua dalam satu akun yang tumbuh bersama Anda.
+          </p>
+          <div className="hero-features">
+            <div className="hero-feature">
+              <span className="hero-feature-bullet">✓</span>
+              <span>Survei kost on-demand oleh surveyor lokal terpercaya</span>
+            </div>
+            <div className="hero-feature">
+              <span className="hero-feature-bullet">✓</span>
+              <span>Layanan pindahan dengan harga transparan & tracking real-time</span>
+            </div>
+            <div className="hero-feature">
+              <span className="hero-feature-bullet">✓</span>
+              <span>Bisa jadi mitra mover atau surveyor kapan saja</span>
+            </div>
+          </div>
+        </div>
+        <div className="hero-foot">© {new Date().getFullYear()} MyKost. Build trust, move smart.</div>
+      </aside>
+
+      <main className="auth-shell-form">
+        <div className="auth-card">
+          <div className="auth-card-title">Selamat datang kembali</div>
+          <div className="auth-card-sub">Masuk ke akun MyKost Anda untuk lanjut.</div>
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="label-modern">Email</label>
+              <input
+                className="input-modern"
+                type="email"
+                placeholder="nama@email.com"
+                value={form.email}
+                onChange={(e) => set('email', e.target.value)}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label className="label-modern">Password</label>
+              <input
+                className="input-modern"
+                type="password"
+                placeholder="••••••••"
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <button className="btn-modern is-brand" type="submit" disabled={loading}>
+              {loading ? 'Memproses...' : 'Masuk'}
             </button>
-          ))}
-        </div>
+          </form>
 
-        <p style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.88rem', color: '#6b7280' }}>
-          Don't have an account?{' '}
-          <Link to="/register" style={{ color: '#e94560', fontWeight: 600 }}>Register</Link>
-        </p>
-      </div>
+          <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem', color: 'var(--ink-soft)' }}>
+            Belum punya akun?{' '}
+            <Link to="/register" style={{ color: 'var(--brand)', fontWeight: 600 }}>Daftar gratis</Link>
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

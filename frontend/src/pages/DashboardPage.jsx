@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import UserDashboard from './UserDashboard';
 import AgentDashboard from './AgentDashboard';
@@ -5,9 +7,13 @@ import MoverDashboard from './MoverDashboard';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  if (!user) return <div className="spinner" />;
+  // workspace is managed by AppShell and passed via outlet context
+  const outletCtx = useOutletContext() || {};
+  const workspace = outletCtx.workspace || localStorage.getItem('activeWorkspace') || 'customer';
 
-  if (user.role === 'agent') return <AgentDashboard />;
-  if (user.role === 'mover') return <MoverDashboard />;
+  if (!user) return <div className="mk-spinner" />;
+
+  if (workspace === 'mover')    return <MoverDashboard />;
+  if (workspace === 'surveyor') return <AgentDashboard />;
   return <UserDashboard />;
 }
