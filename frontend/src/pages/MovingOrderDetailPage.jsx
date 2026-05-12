@@ -201,12 +201,7 @@ export default function MovingOrderDetailPage() {
   const canPay            = isUser  && order.status === 'PENDING_PAYMENT';
   const canCancel         = isUser  && !order.mover_id && ['PENDING_PAYMENT', 'INSTANT_CONFIRMED', 'REVIEW_REQUIRED', 'DRAFT'].includes(order.status);
 
-  const payOrder = async () => {
-    try {
-      await api.post(`/api/moving-orders/${id}/pay`);
-      await fetchOrder();
-    } catch (err) { alert(err.response?.data?.error || 'Gagal bayar'); }
-  };
+  const payOrder = () => navigate(`/checkout/moving/${id}`);
 
   const cancelOrder = async () => {
     if (!confirm('Yakin ingin membatalkan order ini?')) return;

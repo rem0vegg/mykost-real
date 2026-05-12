@@ -41,9 +41,6 @@ export default function SurveyOrderDetailPage() {
   const [surveyResult, setSurveyResult] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [paying, setPaying] = useState(false);
-  const [payErr, setPayErr] = useState('');
-  const [showPayModal, setShowPayModal] = useState(false);
 
   const [refunding, setRefunding] = useState(false);
 
@@ -81,19 +78,6 @@ export default function SurveyOrderDetailPage() {
     }
   }, [location.hash, order]);
 
-  const handlePay = async () => {
-    setPaying(true); setPayErr('');
-    try {
-      const { data } = await api.post(`/api/survey-orders/${id}/pay`);
-      setOrder(data.order);
-      await fetchOrder();
-      setShowPayModal(false);
-    } catch (err) {
-      setPayErr(err.response?.data?.error || 'Pembayaran gagal');
-    } finally {
-      setPaying(false);
-    }
-  };
 
   const handleRefund = async () => {
     if (!window.confirm('Yakin ingin membatalkan order dan meminta refund?')) return;
@@ -202,7 +186,7 @@ export default function SurveyOrderDetailPage() {
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20 }}>
               {rp(order.price || 75000)}
             </div>
-            <button className="mk-btn mk-btn-primary mk-btn-sm" style={{ marginTop: 6 }} onClick={() => setShowPayModal(true)}>
+            <button className="mk-btn mk-btn-primary mk-btn-sm" style={{ marginTop: 6 }} onClick={() => navigate(`/checkout/survey/${id}`)}>
               <Icon name="wallet" size={14} /> Bayar Sekarang
             </button>
           </div>
@@ -472,52 +456,6 @@ export default function SurveyOrderDetailPage() {
         </div>
       </div>
 
-      {/* Payment Modal */}
-      {showPayModal && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
-            display: 'grid', placeItems: 'center', zIndex: 200,
-          }}
-          onClick={() => !paying && setShowPayModal(false)}
-        >
-          <div
-            className="mk-card"
-            style={{ padding: 28, width: '100%', maxWidth: 420, margin: 20 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, marginBottom: 16 }}>
-              Konfirmasi Pembayaran
-            </div>
-            <div style={{ marginBottom: 16, fontSize: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
-                <span>Survey Kost — {order.kost_name}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
-                <span>Biaya Survey</span>
-                <span>{rp(order.price || 75000)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16 }}>
-                <span>Total</span>
-                <span style={{ color: 'var(--brand)' }}>{rp(order.price || 75000)}</span>
-              </div>
-            </div>
-            {payErr && <div className="mk-alert mk-alert-err" style={{ marginBottom: 12 }}>{payErr}</div>}
-            <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 20 }}>
-              Dengan mengklik "Bayar", Anda menyetujui pembayaran biaya survey. Jika tidak ada agent tersedia, dana akan dikembalikan.
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="mk-btn mk-btn-ghost" onClick={() => setShowPayModal(false)} disabled={paying}>
-                Batal
-              </button>
-              <button className="mk-btn mk-btn-primary" onClick={handlePay} disabled={paying}>
-                <Icon name="wallet" size={15} />
-                {paying ? 'Memproses...' : `Bayar ${rp(order.price || 75000)}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
