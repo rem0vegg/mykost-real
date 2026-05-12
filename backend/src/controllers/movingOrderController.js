@@ -585,6 +585,13 @@ async function acceptOrder(req, res) {
   if (!moverCheck.rows[0]?.is_available) {
     return res.status(400).json({ error: 'Anda sedang Inactive. Set status Available untuk mengambil order.' });
   }
+  const activeJob = await pool.query(
+    "SELECT id FROM moving_orders WHERE mover_id=$1 AND status IN ('ACCEPTED','ON_GOING')",
+    [req.user.id]
+  );
+  if (activeJob.rows.length > 0) {
+    return res.status(400).json({ error: 'Anda sedang bertugas. Selesaikan job aktif terlebih dahulu sebelum mengambil job baru.' });
+  }
 
   const updated = await pool.query(
     `UPDATE moving_orders

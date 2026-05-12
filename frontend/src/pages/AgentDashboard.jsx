@@ -33,6 +33,42 @@ function StarRating({ rating, count }) {
   );
 }
 
+function StatusChip({ isAvailable, isBusy }) {
+  if (!isAvailable) return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: 'var(--surface-2)', color: 'var(--ink-mute)',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ink-mute)' }} />
+      Inactive
+    </span>
+  );
+  if (isBusy) return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: '#fff7ed', color: '#c2410c',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f97316' }} />
+      Sedang Bertugas
+    </span>
+  );
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: 'var(--ok-soft)', color: 'var(--ok)',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok)' }} />
+      Available
+    </span>
+  );
+}
+
 function AvailabilityToggle({ isAvailable, onToggle, loading }) {
   return (
     <button
@@ -82,7 +118,7 @@ function StatusPill({ status }) {
   return <span className={cfg.cls}>{cfg.label}</span>;
 }
 
-function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
+function JobCard({ order, onAccept, accepting, onView, isMyOrder, isBusy }) {
   return (
     <article className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="mk-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -147,11 +183,13 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder }) {
         ) : (
           <button
             className="mk-btn mk-btn-primary mk-btn-sm"
-            onClick={() => onAccept(order.id)}
-            disabled={accepting === order.id}
+            onClick={() => !isBusy && onAccept(order.id)}
+            disabled={accepting === order.id || isBusy}
+            title={isBusy ? 'Selesaikan order aktif dulu sebelum menerima order baru' : ''}
+            style={isBusy ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
           >
             <Icon name="check" size={14} />
-            {accepting === order.id ? 'Menerima...' : 'Terima'}
+            {accepting === order.id ? 'Menerima...' : isBusy ? 'Sedang Bertugas' : 'Terima'}
           </button>
         )}
       </div>
@@ -237,6 +275,7 @@ export default function AgentDashboard() {
   const doneCount    = myOrders.filter((o) => o.status === 'completed').length;
   const totalComm    = commissions.reduce((s, c) => s + (c.amount || 0), 0);
   const isAvailable  = user?.is_available !== false;
+  const isBusy       = isAvailable && activeCount > 0;
 
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
@@ -257,11 +296,14 @@ export default function AgentDashboard() {
             </div>
           )}
         </div>
-        <AvailabilityToggle
-          isAvailable={isAvailable}
-          onToggle={toggleAvailability}
-          loading={availToggleLoading}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <AvailabilityToggle
+            isAvailable={isAvailable}
+            onToggle={toggleAvailability}
+            loading={availToggleLoading}
+          />
+          <StatusChip isAvailable={isAvailable} isBusy={isBusy} />
+        </div>
       </div>
 
       {/* Kota warning */}
@@ -375,6 +417,7 @@ export default function AgentDashboard() {
                       accepting={accepting}
                       onView={(id) => navigate(`/survey-orders/${id}`)}
                       isMyOrder={false}
+                      isBusy={isBusy}
                     />
                   ))
                 )}

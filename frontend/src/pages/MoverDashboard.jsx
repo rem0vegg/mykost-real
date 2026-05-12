@@ -57,6 +57,42 @@ function StarRating({ rating, count }) {
   );
 }
 
+function StatusChip({ isAvailable, isBusy }) {
+  if (!isAvailable) return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: 'var(--surface-2)', color: 'var(--ink-mute)',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ink-mute)' }} />
+      Inactive
+    </span>
+  );
+  if (isBusy) return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: '#fff7ed', color: '#c2410c',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f97316' }} />
+      Sedang Bertugas
+    </span>
+  );
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 12, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 'var(--r-pill)',
+      background: 'var(--ok-soft)', color: 'var(--ok)',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok)' }} />
+      Available
+    </span>
+  );
+}
+
 function AvailabilityToggle({ isAvailable, onToggle, loading }) {
   return (
     <button
@@ -94,7 +130,7 @@ function AvailabilityToggle({ isAvailable, onToggle, loading }) {
   );
 }
 
-function JobCard({ order, onAccept, accepting, isMyJob }) {
+function JobCard({ order, onAccept, accepting, isMyJob, isBusy }) {
   const navigate = useNavigate();
   return (
     <article className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -159,11 +195,13 @@ function JobCard({ order, onAccept, accepting, isMyJob }) {
         ) : (
           <button
             className="mk-btn mk-btn-primary mk-btn-sm"
-            onClick={() => onAccept(order.id)}
-            disabled={accepting === order.id}
+            onClick={() => !isBusy && onAccept(order.id)}
+            disabled={accepting === order.id || isBusy}
+            title={isBusy ? 'Selesaikan job aktif dulu sebelum mengambil job baru' : ''}
+            style={isBusy ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
           >
             <Icon name="check" size={14} />
-            {accepting === order.id ? 'Memproses...' : 'Ambil Job'}
+            {accepting === order.id ? 'Memproses...' : isBusy ? 'Sedang Bertugas' : 'Ambil Job'}
           </button>
         )}
       </div>
@@ -244,6 +282,7 @@ export default function MoverDashboard() {
 
   const summary = earnings?.summary || {};
   const isAvailable = user?.is_available !== false;
+  const isBusy      = isAvailable && myJobs.some((j) => ['ACCEPTED', 'ON_GOING'].includes(j.status));
 
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
@@ -262,11 +301,14 @@ export default function MoverDashboard() {
             </div>
           )}
         </div>
-        <AvailabilityToggle
-          isAvailable={isAvailable}
-          onToggle={toggleAvailability}
-          loading={availToggleLoading}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <AvailabilityToggle
+            isAvailable={isAvailable}
+            onToggle={toggleAvailability}
+            loading={availToggleLoading}
+          />
+          <StatusChip isAvailable={isAvailable} isBusy={isBusy} />
+        </div>
       </div>
 
       {/* Offline banner */}
@@ -388,6 +430,7 @@ export default function MoverDashboard() {
                   onAccept={acceptOrder}
                   accepting={accepting}
                   isMyJob={false}
+                  isBusy={isBusy}
                 />
               ))
             )}
