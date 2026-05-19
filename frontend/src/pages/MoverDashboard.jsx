@@ -239,6 +239,9 @@ export default function MoverDashboard() {
       ]);
       setAvailable(a.data.orders);
       setOffline(a.data.offline || false);
+      if (a.data.profile_incomplete) {
+        setMoverProfile((p) => p ?? {});
+      }
       setMyJobs(m.data.orders);
       setEarnings(e.data);
     } catch {}

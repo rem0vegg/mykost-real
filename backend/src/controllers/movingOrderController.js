@@ -443,6 +443,15 @@ async function getAvailableOrders(req, res) {
     return res.json({ orders: [], offline: true });
   }
 
+  const profileRow = await pool.query(
+    'SELECT vehicle_types, plate_number, stnk_url, sim_url, service_area FROM mover_profiles WHERE user_id=$1',
+    [req.user.id]
+  );
+  const mp = profileRow.rows[0];
+  if (!mp || !mp.vehicle_types?.length || !mp.plate_number || !mp.stnk_url || !mp.sim_url || !mp.service_area) {
+    return res.json({ orders: [], profile_incomplete: true });
+  }
+
   const result = await pool.query(
     `SELECT mo.*, u.name AS user_name, u.phone AS user_phone
      FROM moving_orders mo
@@ -584,6 +593,15 @@ async function acceptOrder(req, res) {
   const moverCheck = await pool.query('SELECT is_available FROM users WHERE id=$1', [req.user.id]);
   if (!moverCheck.rows[0]?.is_available) {
     return res.status(400).json({ error: 'Anda sedang Inactive. Set status Available untuk mengambil order.' });
+  }
+
+  const profileCheck = await pool.query(
+    'SELECT vehicle_types, plate_number, stnk_url, sim_url, service_area FROM mover_profiles WHERE user_id=$1',
+    [req.user.id]
+  );
+  const mp = profileCheck.rows[0];
+  if (!mp || !mp.vehicle_types?.length || !mp.plate_number || !mp.stnk_url || !mp.sim_url || !mp.service_area) {
+    return res.status(403).json({ error: 'Profil kendaraan belum lengkap. Lengkapi jenis kendaraan, nomor plat, foto STNK, foto SIM, dan area layanan di menu Profil terlebih dahulu.' });
   }
   const activeJob = await pool.query(
     "SELECT id FROM moving_orders WHERE mover_id=$1 AND status IN ('ACCEPTED','ON_GOING')",
