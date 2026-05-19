@@ -228,6 +228,7 @@ export default function MoverDashboard() {
   const [accepting, setAccepting] = useState(null);
   const [availToggleLoading, setAvailToggleLoading] = useState(false);
   const [ratingSummary, setRatingSummary] = useState(null);
+  const [moverProfile, setMoverProfile] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -252,6 +253,12 @@ export default function MoverDashboard() {
       .then(({ data }) => setRatingSummary(data.summary))
       .catch(() => {});
   }, [user?.id]);
+
+  useEffect(() => {
+    api.get('/api/me/capabilities')
+      .then(({ data }) => setMoverProfile(data.mover_profile || {}))
+      .catch(() => {});
+  }, []);
 
   const toggleAvailability = async () => {
     if (!user) return;
@@ -283,6 +290,13 @@ export default function MoverDashboard() {
   const summary = earnings?.summary || {};
   const isAvailable = user?.is_available !== false;
   const isBusy      = isAvailable && myJobs.some((j) => ['ACCEPTED', 'ON_GOING'].includes(j.status));
+  const profileIncomplete = moverProfile !== null && (
+    !moverProfile.vehicle_types?.length ||
+    !moverProfile.plate_number ||
+    !moverProfile.stnk_url ||
+    !moverProfile.sim_url ||
+    !moverProfile.service_area
+  );
 
   if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
 
@@ -310,6 +324,37 @@ export default function MoverDashboard() {
           <StatusChip isAvailable={isAvailable} isBusy={isBusy} />
         </div>
       </div>
+
+      {/* Profile incomplete banner */}
+      {profileIncomplete && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          padding: '14px 18px',
+          background: '#fff7ed', border: '1px solid #fed7aa',
+          borderRadius: 'var(--r-md)',
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#ffedd5', color: '#c2410c',
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+          }}>
+            <Icon name="alert-triangle" size={17} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#9a3412' }}>Profil belum lengkap</div>
+            <div style={{ fontSize: 13, color: '#c2410c', marginTop: 2 }}>
+              Lengkapi jenis kendaraan, nomor plat, foto STNK, foto SIM, dan area layanan di{' '}
+              <span
+                onClick={() => navigate('/profile')}
+                style={{ fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Profil → Kendaraan & Dokumen
+              </span>{' '}
+              agar bisa menerima orderan.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Offline banner */}
       {offline && (
