@@ -9,6 +9,13 @@ const moverApplySchema = Joi.object({
   bio:           Joi.string().max(500).allow('', null),
 });
 
+const moverUpdateSchema = Joi.object({
+  vehicle_types: Joi.array().items(Joi.string().valid('MOTORCYCLE','VAN','PICKUP_BOX')).min(1).required(),
+  plate_number:  Joi.string().max(20).allow('', null),
+  service_area:  Joi.string().max(200).allow('', null),
+  bio:           Joi.string().max(500).allow('', null),
+});
+
 const surveyorApplySchema = Joi.object({
   kota: Joi.string().min(2).max(100).required(),
   bio:  Joi.string().max(500).allow('', null),
@@ -140,4 +147,65 @@ async function applySurveyor(req, res) {
   }
 }
 
-module.exports = { getMyCapabilities, applyMover, applySurveyor, VALID_CAPS };
+/**
+ * PUT /me/capabilities/mover
+ * Update mover profile text fields (vehicle types, plate, area, bio).
+ */
+async function updateMoverProfile(req, res) {
+  const accountType = await getAccountType(req.user.id);
+  if (accountType !== 'mover') {
+    return res.status(403).json({ error: 'Hanya akun mover yang dapat memperbarui profil ini.' });
+  }
+
+  const { error, value } = moverUpdateSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  await pool.query(
+    `INSERT INTO mover_profiles (user_id, vehicle_types, plate_number, service_area, bio)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id) DO UPDATE SET
+       vehicle_types = EXCLUDED.vehicle_types,
+       plate_number  = EXCLUDED.plate_number,
+       service_area  = EXCLUDED.service_area,
+       bio           = EXCLUDED.bio,
+       updated_at    = NOW()`,
+    [req.user.id, value.vehicle_types, value.plate_number || null, value.service_area || null, value.bio || null]
+  );
+
+  const r = await pool.query('SELECT * FROM mover_profiles WHERE user_id = $1', [req.user.id]);
+  res.json({ mover_profile: r.rows[0] });
+}
+
+/**
+ * POST /me/capabilities/mover/upload/:field  (field = stnk | sim)
+ * Upload a single photo for STNK or SIM; stores the URL in mover_profiles.
+ */
+async function uploadMoverDoc(req, res) {
+  const accountType = await getAccountType(req.user.id);
+  if (accountType !== 'mover') {
+    return res.status(403).json({ error: 'Hanya akun mover yang dapat mengunggah dokumen ini.' });
+  }
+
+  const { field } = req.params;
+  if (!['stnk', 'sim'].includes(field)) {
+    return res.status(400).json({ error: 'Field harus stnk atau sim.' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'File foto wajib diunggah.' });
+  }
+
+  const url = `/uploads/${req.file.filename}`;
+  const col = field === 'stnk' ? 'stnk_url' : 'sim_url';
+
+  await pool.query(
+    `INSERT INTO mover_profiles (user_id, vehicle_types, ${col})
+     VALUES ($1, '{}', $2)
+     ON CONFLICT (user_id) DO UPDATE SET ${col} = EXCLUDED.${col}, updated_at = NOW()`,
+    [req.user.id, url]
+  );
+
+  res.json({ url });
+}
+
+module.exports = { getMyCapabilities, applyMover, applySurveyor, updateMoverProfile, uploadMoverDoc, VALID_CAPS };

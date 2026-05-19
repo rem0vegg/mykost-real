@@ -1,8 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useAuthStore from '../store/authStore';
-import api from '../services/api';
+import api, { getFileUrl } from '../services/api';
 import KotaSelect from '../components/KotaSelect';
 import Icon from '../components/Icon';
+
+const VEHICLE_OPTIONS = [
+  { code: 'MOTORCYCLE', label: 'Motor',      desc: 'Barang ringan: kardus kecil, koper' },
+  { code: 'VAN',        label: 'Van',        desc: 'Barang sedang: kasur lipat, perabot' },
+  { code: 'PICKUP_BOX', label: 'Pickup Box', desc: 'Barang besar: lemari, spring bed' },
+];
+
+const TABS_MOVER = [
+  { id: 'profile',  icon: 'user',    label: 'Informasi Pribadi' },
+  { id: 'vehicle',  icon: 'truck',   label: 'Kendaraan & Dokumen' },
+  { id: 'security', icon: 'shield',  label: 'Keamanan' },
+];
 
 const TABS = [
   { id: 'profile',  icon: 'user',    label: 'Informasi Pribadi' },
@@ -75,6 +87,16 @@ export default function ProfilePage() {
   const [changingPw, setChangingPw] = useState(false);
   const [ratingSummary, setRatingSummary] = useState(null);
 
+  // Mover vehicle & docs state
+  const [moverProfile, setMoverProfile] = useState(null);
+  const [moverForm, setMoverForm] = useState({ vehicle_types: [], plate_number: '', service_area: '', bio: '' });
+  const [moverMsg, setMoverMsg] = useState('');
+  const [moverErr, setMoverErr] = useState('');
+  const [savingMover, setSavingMover] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState({ stnk: false, sim: false });
+  const stnkRef = useRef(null);
+  const simRef = useRef(null);
+
   useEffect(() => {
     if (user) {
       setForm({ name: user.name || '', phone: user.phone || '', location: user.location || '', kota: user.kota || '' });
@@ -89,6 +111,68 @@ export default function ProfilePage() {
       .then(({ data }) => setRatingSummary(data.summary))
       .catch(() => {});
   }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== 'mover') return;
+    api.get('/api/me/capabilities')
+      .then(({ data }) => {
+        const mp = data.mover_profile || {};
+        setMoverProfile(mp);
+        setMoverForm({
+          vehicle_types: mp.vehicle_types || [],
+          plate_number:  mp.plate_number  || '',
+          service_area:  mp.service_area  || '',
+          bio:           mp.bio           || '',
+        });
+      })
+      .catch(() => {});
+  }, [user?.role]);
+
+  const toggleVehicle = (code) => {
+    setMoverForm((f) => ({
+      ...f,
+      vehicle_types: f.vehicle_types.includes(code)
+        ? f.vehicle_types.filter((x) => x !== code)
+        : [...f.vehicle_types, code],
+    }));
+  };
+
+  const saveMoverProfile = async (e) => {
+    e.preventDefault();
+    if (moverForm.vehicle_types.length === 0) return setMoverErr('Pilih minimal satu jenis kendaraan');
+    setSavingMover(true); setMoverMsg(''); setMoverErr('');
+    try {
+      const { data } = await api.put('/api/me/capabilities/mover', moverForm);
+      setMoverProfile(data.mover_profile);
+      setMoverMsg('Profil kendaraan berhasil disimpan.');
+    } catch (error) {
+      setMoverErr(error.response?.data?.error || 'Gagal menyimpan');
+    } finally {
+      setSavingMover(false);
+    }
+  };
+
+  const uploadDoc = async (field, file) => {
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setMoverErr('Hanya file gambar (JPG, PNG, WebP) yang diizinkan.');
+      return;
+    }
+    setUploadingDoc((d) => ({ ...d, [field]: true }));
+    setMoverErr('');
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const { data } = await api.post(`/api/me/capabilities/mover/upload/${field}`, fd);
+      setMoverProfile((p) => ({ ...p, [`${field}_url`]: data.url }));
+      setMoverMsg(`Foto ${field.toUpperCase()} berhasil diunggah.`);
+    } catch (error) {
+      setMoverErr(error.response?.data?.error || `Gagal upload foto ${field.toUpperCase()}`);
+    } finally {
+      setUploadingDoc((d) => ({ ...d, [field]: false }));
+    }
+  };
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -123,6 +207,7 @@ export default function ProfilePage() {
   const roleLabel = { customer: 'Penyewa', agent: 'Surveyor', mover: 'Mover' }[user.role] || user.role;
   const joined = new Date(user.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
   const isProvider = user.role === 'agent' || user.role === 'mover';
+  const tabs = user.role === 'mover' ? TABS_MOVER : TABS;
 
   return (
     <div className="mk-page">
@@ -170,7 +255,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Tab buttons */}
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
@@ -274,6 +359,132 @@ export default function ProfilePage() {
                 </form>
               </Section>
             </>
+          )}
+
+          {activeTab === 'vehicle' && (
+            <Section title="Kendaraan & Dokumen" sub="Informasi ini wajib diisi agar bisa menerima orderan.">
+              {moverMsg && <div className="mk-alert mk-alert-ok" style={{ marginBottom: 16 }}>{moverMsg}</div>}
+              {moverErr && <div className="mk-alert mk-alert-err" style={{ marginBottom: 16 }}>{moverErr}</div>}
+              <form onSubmit={saveMoverProfile}>
+                <Field label="Jenis Kendaraan" hint="Pilih minimal satu. Order akan difilter sesuai kendaraan Anda.">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                    {VEHICLE_OPTIONS.map((v) => {
+                      const sel = moverForm.vehicle_types.includes(v.code);
+                      return (
+                        <label
+                          key={v.code}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '10px 14px',
+                            border: `1.5px solid ${sel ? 'var(--brand)' : 'var(--line-strong)'}`,
+                            borderRadius: 'var(--r-sm)',
+                            background: sel ? 'var(--brand-soft)' : 'var(--surface)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={sel}
+                            onChange={() => toggleVehicle(v.code)}
+                            style={{ accentColor: 'var(--brand)', width: 16, height: 16 }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 13 }}>{v.label}</div>
+                            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{v.desc}</div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </Field>
+
+                <Field label="Nomor Plat Kendaraan" hint="Contoh: B 1234 ABC">
+                  <input
+                    className="mk-input"
+                    value={moverForm.plate_number}
+                    onChange={(e) => setMoverForm({ ...moverForm, plate_number: e.target.value })}
+                    placeholder="B 1234 ABC"
+                    maxLength={20}
+                  />
+                </Field>
+
+                <Field label="Area Layanan" hint="Kota / wilayah utama tempat Anda beroperasi.">
+                  <input
+                    className="mk-input"
+                    value={moverForm.service_area}
+                    onChange={(e) => setMoverForm({ ...moverForm, service_area: e.target.value })}
+                    placeholder="Contoh: Jakarta Selatan, Tangerang, Bekasi"
+                    maxLength={200}
+                  />
+                </Field>
+
+                <button className="mk-btn mk-btn-primary" type="submit" disabled={savingMover} style={{ marginBottom: 24 }}>
+                  {savingMover ? 'Menyimpan...' : <><Icon name="check" size={15} /> Simpan Profil Kendaraan</>}
+                </button>
+              </form>
+
+              {/* STNK Upload */}
+              <div style={{ borderTop: '1px solid var(--line)', paddingTop: 20, marginBottom: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Foto STNK</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 12 }}>
+                  Wajib diisi. Max 1 foto (JPG, PNG, WebP, maks 5MB).
+                </div>
+                {moverProfile?.stnk_url && (
+                  <img
+                    src={getFileUrl(moverProfile.stnk_url)}
+                    alt="STNK"
+                    style={{ height: 120, objectFit: 'cover', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', marginBottom: 10, display: 'block' }}
+                  />
+                )}
+                <input
+                  ref={stnkRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => uploadDoc('stnk', e.target.files[0])}
+                />
+                <button
+                  className="mk-btn"
+                  type="button"
+                  disabled={uploadingDoc.stnk}
+                  onClick={() => stnkRef.current?.click()}
+                  style={{ fontSize: 13 }}
+                >
+                  {uploadingDoc.stnk ? 'Mengunggah...' : (moverProfile?.stnk_url ? 'Ganti Foto STNK' : 'Upload Foto STNK')}
+                </button>
+              </div>
+
+              {/* SIM Upload */}
+              <div style={{ borderTop: '1px solid var(--line)', paddingTop: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Foto SIM</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 12 }}>
+                  Wajib diisi. Max 1 foto (JPG, PNG, WebP, maks 5MB).
+                </div>
+                {moverProfile?.sim_url && (
+                  <img
+                    src={getFileUrl(moverProfile.sim_url)}
+                    alt="SIM"
+                    style={{ height: 120, objectFit: 'cover', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', marginBottom: 10, display: 'block' }}
+                  />
+                )}
+                <input
+                  ref={simRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => uploadDoc('sim', e.target.files[0])}
+                />
+                <button
+                  className="mk-btn"
+                  type="button"
+                  disabled={uploadingDoc.sim}
+                  onClick={() => simRef.current?.click()}
+                  style={{ fontSize: 13 }}
+                >
+                  {uploadingDoc.sim ? 'Mengunggah...' : (moverProfile?.sim_url ? 'Ganti Foto SIM' : 'Upload Foto SIM')}
+                </button>
+              </div>
+            </Section>
           )}
 
           {activeTab === 'security' && (

@@ -61,7 +61,8 @@ const useAuthStore = create((set) => ({
   fetchMe: async () => {
     try {
       const { data } = await api.get('/api/auth/me');
-      set({ user: data.user, capabilities: data.capabilities || [] });
+      const token = localStorage.getItem('token');
+      set({ user: data.user, capabilities: data.capabilities || [], token });
     } catch {
       set({ user: null, capabilities: [], token: null });
       localStorage.removeItem('token');

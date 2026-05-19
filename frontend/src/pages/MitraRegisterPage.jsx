@@ -57,7 +57,7 @@ export default function MitraRegisterPage() {
       });
       localStorage.setItem('token', data.token);
       await fetchMe();
-      navigate(role === 'mover' ? '/apply/mover' : '/apply/surveyor');
+      navigate('/dashboard');
     } catch (err) {
       setApiErr(err.response?.data?.error || 'Pendaftaran gagal, coba lagi');
     } finally {
