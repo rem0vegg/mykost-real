@@ -220,12 +220,12 @@ export default function MitraRegisterPage() {
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
                     className="btn-modern"
-                    style={{ background: 'var(--surface-2)', color: 'var(--ink)', flex: '0 0 auto', padding: '0 18px' }}
-                    type="button" onClick={() => setStep(1)}
+                    style={{ background: 'var(--surface-2)', color: 'var(--ink)', width: 'auto', flex: '0 0 auto', padding: '0 18px', whiteSpace: 'nowrap' }}
+                    type="button" onClick={() => preselected ? navigate('/dashboard') : setStep(1)}
                   >
                     ← Kembali
                   </button>
-                  <button className="btn-modern is-brand" type="submit" disabled={loading} style={{ flex: 1 }}>
+                  <button className="btn-modern is-brand" type="submit" disabled={loading} style={{ flex: 1, width: 'auto', whiteSpace: 'nowrap' }}>
                     {loading ? 'Membuat akun...' : 'Daftar & Lanjutkan'}
                   </button>
                 </div>
@@ -234,11 +234,6 @@ export default function MitraRegisterPage() {
                   Dengan mendaftar, Anda menyetujui Syarat & Ketentuan serta Kebijakan Privasi MyKost.
                 </p>
               </form>
-
-              <p style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.9rem', color: 'var(--ink-soft)' }}>
-                Sudah punya akun?{' '}
-                <Link to="/login" style={{ color: 'var(--brand)', fontWeight: 600 }}>Masuk</Link>
-              </p>
             </>
           )}
         </div>

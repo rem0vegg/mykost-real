@@ -33,11 +33,13 @@ const WORKSPACE_LABEL = { customer: 'Cari Layanan', surveyor: 'Surveyor', mover:
 function getActiveWorkspace(user, capabilities) {
   const stored = localStorage.getItem('activeWorkspace');
   const active = (capabilities || []).filter((c) => c.status === 'active').map((c) => c.capability);
-  if (stored && active.includes(stored)) return stored;
-  if (user?.role === 'mover' && active.includes('mover')) return 'mover';
-  if (user?.role === 'agent' && active.includes('surveyor')) return 'surveyor';
-  if (active.length >= 1) return active[0];
-  return 'customer';
+  const isMitra = user?.account_type && user.account_type !== 'customer';
+  const allowed = isMitra ? active.filter((c) => c !== 'customer') : active;
+  if (stored && allowed.includes(stored)) return stored;
+  if (user?.role === 'mover' && allowed.includes('mover')) return 'mover';
+  if (user?.role === 'agent' && allowed.includes('surveyor')) return 'surveyor';
+  if (allowed.length >= 1) return allowed[0];
+  return isMitra ? (user.account_type === 'mover' ? 'mover' : 'surveyor') : 'customer';
 }
 
 function getActiveNavId(pathname, search) {
@@ -50,7 +52,11 @@ function getActiveNavId(pathname, search) {
 function TopBar({ user, workspace, onWorkspaceChange, capabilities }) {
   const navigate = useNavigate();
   const { logout } = useAuthStore();
-  const activeCaps = (capabilities || []).filter((c) => c.status === 'active').map((c) => c.capability);
+  const isMitra = user?.account_type && user.account_type !== 'customer';
+  const activeCaps = (capabilities || [])
+    .filter((c) => c.status === 'active')
+    .map((c) => c.capability)
+    .filter((cap) => !isMitra || cap !== 'customer');
   const showSwitcher = activeCaps.length > 1;
   const [showMenu, setShowMenu] = useState(false);
 
@@ -176,14 +182,16 @@ function TopBar({ user, workspace, onWorkspaceChange, capabilities }) {
                   <Icon name="user" size={16} />
                   Profil Saya
                 </Link>
-                <Link to="/onboarding" onClick={() => setShowMenu(false)} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '11px 14px', fontSize: 14, fontWeight: 500,
-                  color: 'var(--ink)', borderBottom: '1px solid var(--line)',
-                }}>
-                  <Icon name="zap" size={16} />
-                  Menjadi Mitra
-                </Link>
+                {(!user?.account_type || user.account_type === 'customer') && (
+                  <Link to="/onboarding" onClick={() => setShowMenu(false)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '11px 14px', fontSize: 14, fontWeight: 500,
+                    color: 'var(--ink)', borderBottom: '1px solid var(--line)',
+                  }}>
+                    <Icon name="zap" size={16} />
+                    Menjadi Mitra
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   style={{
