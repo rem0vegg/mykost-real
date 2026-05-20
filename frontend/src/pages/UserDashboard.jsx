@@ -18,19 +18,24 @@ const PRICE = 75000;
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
 const STATUS_LABEL = {
-  pending_payment: { cls: 'mk-pill mk-pill-warn', label: 'Menunggu pembayaran' },
-  finding_agent:   { cls: 'mk-pill mk-pill-info', label: 'Mencari surveyor' },
-  assigned:        { cls: 'mk-pill mk-pill-info', label: 'Sedang disurvei' },
-  completed:       { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
-  cancelled:       { cls: 'mk-pill',              label: 'Dibatalkan' },
+  // Survey
+  pending_payment:  { cls: 'mk-pill mk-pill-warn', label: 'Menunggu Pembayaran' },
+  finding_agent:    { cls: 'mk-pill mk-pill-info', label: 'Mencari Surveyor' },
+  assigned:         { cls: 'mk-pill mk-pill-info', label: 'Sedang Disurvei' },
+  result_submitted: { cls: 'mk-pill mk-pill-warn', label: 'Hasil Survei Siap' },
+  completed:        { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
+  refunded:         { cls: 'mk-pill',              label: 'Dana Dikembalikan' },
+  cancelled:        { cls: 'mk-pill mk-pill-err',  label: 'Dibatalkan' },
+  // Moving
   DRAFT:             { cls: 'mk-pill',              label: 'Draft' },
-  INSTANT_CONFIRMED: { cls: 'mk-pill mk-pill-info', label: 'Menunggu mover' },
-  REVIEW_REQUIRED:   { cls: 'mk-pill mk-pill-warn', label: 'Perlu review' },
-  ACCEPTED:          { cls: 'mk-pill mk-pill-info', label: 'Mover ditugaskan' },
-  ON_GOING:          { cls: 'mk-pill mk-pill-info', label: 'Sedang pindahan' },
+  PENDING_PAYMENT:   { cls: 'mk-pill mk-pill-warn', label: 'Menunggu Pembayaran' },
+  INSTANT_CONFIRMED: { cls: 'mk-pill mk-pill-info', label: 'Menunggu Mover' },
+  REVIEW_REQUIRED:   { cls: 'mk-pill mk-pill-warn', label: 'Perlu Review' },
+  ACCEPTED:          { cls: 'mk-pill mk-pill-info', label: 'Mover Ditugaskan' },
+  ON_GOING:          { cls: 'mk-pill mk-pill-info', label: 'Sedang Pindahan' },
   COMPLETED:         { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
-  INVALID:           { cls: 'mk-pill mk-pill-err',  label: 'Dibatalkan' },
-  CANCELLED:         { cls: 'mk-pill',              label: 'Dibatalkan' },
+  INVALID:           { cls: 'mk-pill mk-pill-err',  label: 'Tidak Valid' },
+  CANCELLED:         { cls: 'mk-pill mk-pill-err',  label: 'Dibatalkan' },
 };
 
 function StatusPill({ status }) {
