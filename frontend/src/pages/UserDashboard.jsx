@@ -46,6 +46,23 @@ function StatusPill({ status }) {
 const SURVEY_HISTORY_STATUS = ['completed', 'cancelled', 'refunded'];
 const MOVING_HISTORY_STATUS = ['COMPLETED', 'CANCELLED', 'INVALID'];
 
+const SURVEY_SORT_PRIORITY = {
+  assigned: 0,
+  result_submitted: 1,
+  finding_agent: 2,
+  pending_payment: 3,
+};
+
+const MOVING_SORT_PRIORITY = {
+  ON_GOING: 0,
+  ACCEPTED: 1,
+  REVIEW_REQUIRED: 2,
+  INSTANT_CONFIRMED: 3,
+  PENDING_PAYMENT: 4,
+  SUBMITTED: 5,
+  DRAFT: 6,
+};
+
 function HistoryDivider({ count, expanded, onToggle }) {
   return (
     <button
@@ -487,7 +504,9 @@ export default function UserDashboard() {
             )}
 
             {(() => {
-              const activeSurvey  = orders.filter((o) => !SURVEY_HISTORY_STATUS.includes(o.status));
+              const activeSurvey  = orders
+                .filter((o) => !SURVEY_HISTORY_STATUS.includes(o.status))
+                .sort((a, b) => (SURVEY_SORT_PRIORITY[a.status] ?? 99) - (SURVEY_SORT_PRIORITY[b.status] ?? 99));
               const historySurvey = orders.filter((o) =>  SURVEY_HISTORY_STATUS.includes(o.status));
               const renderCard = (order, dim = false) => (
                 <article key={order.id} className="mk-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, opacity: dim ? 0.78 : 1 }}>
@@ -813,7 +832,9 @@ export default function UserDashboard() {
             )}
 
             {(() => {
-              const activeMoving  = movingOrders.filter((o) => !MOVING_HISTORY_STATUS.includes(o.status));
+              const activeMoving  = movingOrders
+                .filter((o) => !MOVING_HISTORY_STATUS.includes(o.status))
+                .sort((a, b) => (MOVING_SORT_PRIORITY[a.status] ?? 99) - (MOVING_SORT_PRIORITY[b.status] ?? 99));
               const historyMoving = movingOrders.filter((o) =>  MOVING_HISTORY_STATUS.includes(o.status));
               if (movingOrders.length === 0) {
                 return (
