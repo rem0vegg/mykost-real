@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Icon from '../components/Icon';
 
@@ -27,12 +27,30 @@ function loadSnapScript(clientKey) {
 export default function CheckoutPage() {
   const { type, orderId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState('');
   const [snapReady, setSnapReady] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  // Verify payment dengan Midtrans API dan update status order
+  const verifyAndRedirect = async () => {
+    setVerifying(true);
+    try {
+      const { data } = await api.post(`/api/payments/${type}/${orderId}/verify`);
+      if (data.status === 'paid' || data.already_paid) {
+        navigate(type === 'survey' ? `/survey-orders/${orderId}` : `/moving-orders/${orderId}`,
+          { state: { paymentSuccess: true } });
+      }
+    } catch {
+      // Biarkan user lihat halaman checkout normal jika verify gagal
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -42,6 +60,12 @@ export default function CheckoutPage() {
           : `/api/moving-orders/${orderId}`;
         const { data } = await api.get(endpoint);
         setOrder(data.order);
+
+        // Midtrans redirect balik dengan query params → auto-verify
+        const txStatus = searchParams.get('transaction_status');
+        if (txStatus && data.order.payment_status !== 'paid') {
+          verifyAndRedirect();
+        }
       } catch (err) {
         setError(err.response?.data?.error || 'Order tidak ditemukan');
       } finally {
@@ -79,21 +103,14 @@ export default function CheckoutPage() {
       }
 
       window.snap.pay(data.snap_token, {
-        onSuccess: () => {
-          const dest = type === 'survey' ? `/survey-orders/${orderId}` : `/moving-orders/${orderId}`;
-          navigate(dest, { state: { paymentSuccess: true } });
-        },
-        onPending: () => {
-          const dest = type === 'survey' ? `/survey-orders/${orderId}` : `/moving-orders/${orderId}`;
-          navigate(dest, { state: { paymentPending: true } });
-        },
+        onSuccess: () => verifyAndRedirect(),
+        onPending: () => verifyAndRedirect(),
         onError: (result) => {
           setError('Pembayaran gagal. Silakan coba lagi.');
           console.error('[snap] error:', result);
-        },
-        onClose: () => {
           setPayLoading(false);
         },
+        onClose: () => setPayLoading(false),
       });
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memulai pembayaran');
@@ -102,7 +119,12 @@ export default function CheckoutPage() {
     }
   };
 
-  if (loading) return <div className="mk-loading"><div className="mk-spinner" /></div>;
+  if (loading || verifying) return (
+    <div className="mk-loading">
+      <div className="mk-spinner" />
+      {verifying && <p style={{ marginTop: 16, fontSize: 14, color: 'var(--ink-soft)' }}>Memverifikasi pembayaran...</p>}
+    </div>
+  );
   if (error && !order) return (
     <div className="mk-page" style={{ textAlign: 'center', paddingTop: 60 }}>
       <Icon name="alert-circle" size={48} style={{ color: 'var(--err)', marginBottom: 16 }} />
