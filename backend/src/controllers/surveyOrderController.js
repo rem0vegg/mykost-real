@@ -301,7 +301,7 @@ async function getOrderById(req, res) {
   );
 
   let surveyResult = null;
-  if (order.status === 'completed') {
+  if (['result_submitted', 'completed'].includes(order.status)) {
     const sr = await pool.query(
       'SELECT * FROM survey_results WHERE order_id=$1',
       [id]
