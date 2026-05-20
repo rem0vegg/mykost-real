@@ -10,43 +10,6 @@ const MIDTRANS_SNAP_URL = import.meta.env.VITE_MIDTRANS_ENV === 'production'
   ? 'https://app.midtrans.com/snap/snap.js'
   : 'https://app.sandbox.midtrans.com/snap/snap.js';
 
-const PAYMENT_METHODS = [
-  {
-    id: 'bank_transfer',
-    label: 'Transfer Bank',
-    desc: 'BCA, BNI, BRI, Mandiri, dan bank lainnya',
-    icon: 'layers',
-    badge: null,
-  },
-  {
-    id: 'credit_card',
-    label: 'Kartu Kredit / Debit',
-    desc: 'Visa, Mastercard, JCB',
-    icon: 'credit-card',
-    badge: null,
-  },
-  {
-    id: 'qris',
-    label: 'QRIS',
-    desc: 'Scan QR dari semua aplikasi dompet digital',
-    icon: 'grid',
-    badge: 'Populer',
-  },
-  {
-    id: 'ewallet',
-    label: 'E-Wallet',
-    desc: 'GoPay, ShopeePay',
-    icon: 'smartphone',
-    badge: null,
-  },
-  {
-    id: 'retail',
-    label: 'Gerai Retail',
-    desc: 'Alfamart, Indomaret',
-    icon: 'map-pin',
-    badge: null,
-  },
-];
 
 function loadSnapScript(clientKey) {
   return new Promise((resolve, reject) => {
@@ -70,7 +33,6 @@ export default function CheckoutPage() {
   const [payLoading, setPayLoading] = useState(false);
   const [error, setError] = useState('');
   const [snapReady, setSnapReady] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState('qris');
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -103,7 +65,7 @@ export default function CheckoutPage() {
       const endpoint = type === 'survey'
         ? `/api/payments/survey/${orderId}/snap-token`
         : `/api/payments/moving/${orderId}/snap-token`;
-      const { data } = await api.post(endpoint, { payment_method: selectedMethod });
+      const { data } = await api.post(endpoint, {});
 
       if (data.dev_mode) {
         const dest = type === 'survey' ? `/survey-orders/${orderId}` : `/moving-orders/${orderId}`;
@@ -155,8 +117,6 @@ export default function CheckoutPage() {
   const isExpired = isSurvey
     ? !['pending_payment'].includes(order.status)
     : !['PENDING_PAYMENT', 'REVIEW_REQUIRED'].includes(order.status);
-
-  const selectedMethodInfo = PAYMENT_METHODS.find((m) => m.id === selectedMethod);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface-2)' }}>
@@ -306,69 +266,6 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Payment Method Selection */}
-        {!isPaid && !isExpired && (
-          <div className="mk-card" style={{ padding: 20, marginBottom: 12 }}>
-            <SectionLabel icon="credit-card" label="Metode Pembayaran" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {PAYMENT_METHODS.map((method) => {
-                const active = selectedMethod === method.id;
-                return (
-                  <button
-                    key={method.id}
-                    onClick={() => setSelectedMethod(method.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '14px 16px',
-                      border: active ? '2px solid var(--brand)' : '1.5px solid var(--line)',
-                      borderRadius: 'var(--r-md)',
-                      background: active ? 'var(--brand-soft)' : 'var(--surface)',
-                      cursor: 'pointer',
-                      transition: 'all .15s',
-                      textAlign: 'left',
-                      width: '100%',
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >
-                    <div style={{
-                      width: 38, height: 38, borderRadius: 'var(--r-sm)',
-                      background: active ? 'var(--brand)' : 'var(--surface-2)',
-                      color: active ? '#fff' : 'var(--ink-mute)',
-                      display: 'grid', placeItems: 'center', flexShrink: 0,
-                      transition: 'all .15s',
-                    }}>
-                      <Icon name={method.icon} size={18} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontWeight: 700, fontSize: 14,
-                        color: active ? 'var(--brand-ink)' : 'var(--ink)',
-                        display: 'flex', alignItems: 'center', gap: 8,
-                      }}>
-                        {method.label}
-                        {method.badge && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '1px 7px',
-                            borderRadius: 'var(--r-pill)',
-                            background: 'var(--brand)', color: '#fff',
-                          }}>
-                            {method.badge}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 2 }}>{method.desc}</div>
-                    </div>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: '50%',
-                      border: active ? '5px solid var(--brand)' : '2px solid var(--line-strong)',
-                      flexShrink: 0, transition: 'all .15s',
-                    }} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Security info */}
         <div style={{
@@ -416,12 +313,9 @@ export default function CheckoutPage() {
                   {rp(price)}
                 </div>
               </div>
-              {selectedMethodInfo && (
-                <div style={{ fontSize: 12, color: 'var(--ink-soft)', textAlign: 'right' }}>
-                  <div style={{ color: 'var(--ink-mute)', fontSize: 11 }}>via</div>
-                  <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{selectedMethodInfo.label}</div>
-                </div>
-              )}
+              <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                via Midtrans
+              </div>
             </div>
             <button
               className="mk-btn mk-btn-primary"
