@@ -108,13 +108,15 @@ function AvailabilityToggle({ isAvailable, onToggle, loading }) {
 
 function StatusPill({ status }) {
   const MAP = {
-    pending_payment: { cls: 'mk-pill mk-pill-warn', label: 'Menunggu pembayaran' },
-    finding_agent:   { cls: 'mk-pill mk-pill-info', label: 'Mencari surveyor' },
-    assigned:        { cls: 'mk-pill mk-pill-info', label: 'Sedang disurvei' },
-    completed:       { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
-    cancelled:       { cls: 'mk-pill',              label: 'Dibatalkan' },
+    pending_payment:  { cls: 'mk-pill mk-pill-warn', label: 'Menunggu Pembayaran' },
+    finding_agent:    { cls: 'mk-pill mk-pill-info', label: 'Mencari Surveyor' },
+    assigned:         { cls: 'mk-pill mk-pill-info', label: 'Sedang Disurvei' },
+    result_submitted: { cls: 'mk-pill mk-pill-warn', label: 'Hasil Survei Siap' },
+    completed:        { cls: 'mk-pill mk-pill-ok',   label: 'Selesai' },
+    refunded:         { cls: 'mk-pill',              label: 'Dana Dikembalikan' },
+    cancelled:        { cls: 'mk-pill mk-pill-err',  label: 'Dibatalkan' },
   };
-  const cfg = MAP[status] || { cls: 'mk-pill mk-pill-info', label: status };
+  const cfg = MAP[status] || { cls: 'mk-pill', label: status };
   return <span className={cfg.cls}>{cfg.label}</span>;
 }
 

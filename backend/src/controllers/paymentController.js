@@ -1,13 +1,6 @@
 const pool = require('../db/pool');
 const crypto = require('crypto');
 
-const PAYMENT_METHOD_MAP = {
-  bank_transfer: ['bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va'],
-  credit_card:   ['credit_card'],
-  qris:          ['qris'],
-  ewallet:       ['gopay', 'shopeepay'],
-  retail:        ['alfamart', 'indomaret'],
-};
 
 /**
  * Midtrans Snap integration.
@@ -34,6 +27,17 @@ function snapBaseUrl() {
   return isProduction
     ? 'https://app.midtrans.com/snap/v1'
     : 'https://app.sandbox.midtrans.com/snap/v1';
+}
+
+function apiBaseUrl() {
+  const isProduction = process.env.MIDTRANS_ENV === 'production';
+  return isProduction
+    ? 'https://api.midtrans.com/v2'
+    : 'https://api.sandbox.midtrans.com/v2';
+}
+
+function frontendUrl() {
+  return process.env.FRONTEND_URL || 'http://localhost:5173';
 }
 
 /**
@@ -105,7 +109,6 @@ async function createSurveySnapToken(req, res) {
     });
   }
 
-  const enabledPayments = PAYMENT_METHOD_MAP[req.body.payment_method];
   const payload = {
     transaction_details: {
       order_id:     orderRef,
@@ -122,7 +125,9 @@ async function createSurveySnapToken(req, res) {
       quantity: 1,
       name:     `Survei Kost - ${order.kost_name}`,
     }],
-    ...(enabledPayments ? { enabled_payments: enabledPayments } : {}),
+    callbacks: {
+      finish: `${frontendUrl()}/checkout/survey/${orderId}`,
+    },
   };
 
   try {
@@ -208,7 +213,6 @@ async function createMovingSnapToken(req, res) {
   }
 
   const vehicleLabel = { MOTORCYCLE: 'Motor', VAN: 'Van', PICKUP_BOX: 'Pickup Box' }[order.vehicle_type] || order.vehicle_type;
-  const enabledPayments = PAYMENT_METHOD_MAP[req.body.payment_method];
   const payload = {
     transaction_details: {
       order_id:     orderRef,
@@ -225,7 +229,9 @@ async function createMovingSnapToken(req, res) {
       quantity: 1,
       name:     `Pindahan ${vehicleLabel} - ${(order.distance_km || 0)} km`,
     }],
-    ...(enabledPayments ? { enabled_payments: enabledPayments } : {}),
+    callbacks: {
+      finish: `${frontendUrl()}/checkout/moving/${orderId}`,
+    },
   };
 
   try {
@@ -340,4 +346,93 @@ async function handleWebhook(req, res) {
   }
 }
 
-module.exports = { createSurveySnapToken, createMovingSnapToken, handleWebhook };
+/**
+ * POST /api/payments/:type/:orderId/verify
+ * Poll Midtrans API langsung untuk cek & update status transaksi.
+ * Digunakan saat webhook tidak bisa masuk (localhost dev) atau user redirect balik.
+ */
+async function verifyPayment(req, res) {
+  const { type, orderId } = req.params;
+  if (!['survey', 'moving'].includes(type)) {
+    return res.status(400).json({ error: 'Tipe order tidak valid' });
+  }
+
+  const orderRef = `${type}-${orderId}`;
+
+  const mtR = await pool.query(
+    `SELECT * FROM midtrans_payments WHERE order_ref = $1`,
+    [orderRef]
+  );
+  if (mtR.rows.length === 0) {
+    return res.status(404).json({ error: 'Data pembayaran tidak ditemukan' });
+  }
+  const mt = mtR.rows[0];
+
+  if (mt.status === 'paid') {
+    return res.json({ status: 'paid', already_paid: true });
+  }
+
+  // Poll Midtrans transaction status API
+  let txData;
+  try {
+    const r = await fetch(`${apiBaseUrl()}/${orderRef}/status`, {
+      headers: midtransHeaders(),
+    });
+    txData = await r.json();
+  } catch (err) {
+    console.error('[midtrans verify] fetch error:', err);
+    return res.status(502).json({ error: 'Tidak dapat menghubungi Midtrans' });
+  }
+
+  const txStatus    = txData.transaction_status;
+  const fraudStatus = txData.fraud_status;
+
+  const isPaid = (txStatus === 'capture' && fraudStatus === 'accept') || txStatus === 'settlement';
+  const isFailed = ['deny', 'cancel', 'expire', 'failure'].includes(txStatus);
+
+  if (!isPaid && !isFailed) {
+    return res.json({ status: txStatus || 'pending' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const newStatus = isPaid ? 'paid' : 'failed';
+    await client.query(
+      `UPDATE midtrans_payments SET status = $1, midtrans_txn = $2, updated_at = NOW()
+       WHERE order_ref = $3`,
+      [newStatus, JSON.stringify(txData), orderRef]
+    );
+
+    if (isPaid) {
+      if (type === 'survey') {
+        await client.query(
+          `UPDATE survey_orders SET payment_status = 'paid', status = 'finding_agent', updated_at = NOW()
+           WHERE id = $1 AND payment_status = 'pending'`,
+          [orderId]
+        );
+      } else {
+        await client.query(
+          `UPDATE moving_orders
+           SET payment_status = 'paid',
+               status = CASE WHEN requires_review THEN 'REVIEW_REQUIRED' ELSE 'INSTANT_CONFIRMED' END,
+               updated_at = NOW()
+           WHERE id = $1 AND payment_status = 'pending'`,
+          [orderId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ status: newStatus });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[midtrans verify] db error:', e);
+    res.status(500).json({ error: 'Internal error' });
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { createSurveySnapToken, createMovingSnapToken, handleWebhook, verifyPayment };
