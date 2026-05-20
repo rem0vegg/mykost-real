@@ -162,7 +162,7 @@ function JobCard({ order, onAccept, accepting, onView, isMyOrder, isBusy }) {
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>Komisi</div>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--brand)' }}>
-                {rp(60000)}
+                {rp(order.price)}
               </div>
             </div>
           )}
